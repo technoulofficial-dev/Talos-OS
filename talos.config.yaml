@@ -1,0 +1,85 @@
+talos:
+  version: "8.0.0"
+  mode: local-first
+  hermes_anchor: odin
+  
+g0dm0d3:
+  enabled: true
+  scan_interval_ms: 30000
+  capability_threshold: 0.3
+  scan_subnets:
+    - "192.168.0.0/24"
+    - "10.0.0.0/24"
+  ollama_port: 11434
+  
+cloud:
+  enabled: true
+  providers:
+    - nvidia-nim
+  budget:
+    monthly_usd: 50
+    hourly_usd: 5
+    per_task_tokens: 100000
+    per_minute_requests: 30
+    hard_kill_at: 0.95
+  
+hermes:
+  agent_id: odin
+  primary_model: nvidia/nemotron-3-super-120b-a12b
+  fallback_model: moonshotai/kimi-k2.6
+  pinned: true
+  max_context_tokens: 262000
+  temperature: 0.4
+  
+cortex:
+  max_injection_tokens: 12000
+  verbatim_window: 50
+  mid_range_block: 20
+  distant_threshold: 200
+  
+loom:
+  bidding_window_ms: 2000
+  epsilon_greedy: 0.1
+  re_auction_timeout_ms: 300000
+  score_weights:
+    capability: 0.5
+    load_inverse: 0.3
+    cost_inverse: 0.2
+    
+agents:
+  loom:
+    model: deepseek-ai/deepseek-v4-pro
+    context: 1000000
+  odin:
+    model: nvidia/nemotron-3-super-120b-a12b
+    context: 262000
+  mimir:
+    model: nvidia/nemotron-3-super-120b-a12b
+    context: 262000
+  brokkr:
+    model: moonshotai/kimi-k2.6
+    context: 256000
+  opencode:
+    model: minimaxai/minimax-m2.7
+    context: 200000
+  huginn:
+    model: mistralai/mistral-large-3-675b-instruct-2512
+    context: 256000
+  sage:
+    model: moonshotai/kimi-k2.6
+    context: 256000
+  muninn:
+    model: z-ai/glm-5.1
+    context: 198000
+  nornir:
+    model: mistralai/mistral-large-3-675b-instruct-2512
+    context: 256000
+  eitri:
+    model: deepseek-ai/deepseek-v4-pro
+    context: 1000000
+  bragi:
+    model: nvidia/nemotron-3-super-120b-a12b
+    context: 262000
+  system:
+    model: qwen/qwen3.5-397b-a17b
+    context: 256000

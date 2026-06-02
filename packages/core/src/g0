@@ -1,0 +1,6 @@
+export { scanSubnets, type ScanResult } from "./scanner.js";
+export { probeOllama, isAlive, type ProbeResult, type OllamaModel } from "./probe.js";
+export { scoreCapability, type DeviceCapabilityInput, type CapabilityScore } from "./score.js";
+export { registerDevice, getOnlineDevices, getDevice, markOffline, removeDevice, getDeviceCount, clearDevices, type DeviceEntry } from "./registry.js";
+export { startHeartbeatMonitor, stopHeartbeatMonitor, type HeartbeatConfig } from "./heartbeat.js";
+export { executeLocal, executeOnLocal, isLocalAlive, type LocalExecutionRequest, type LocalExecutionResult } from "./executor.js";

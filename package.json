@@ -1,0 +1,27 @@
+{
+  "name": "talos-os",
+  "version": "8.0.0",
+  "private": true,
+  "description": "Talos OS — The Bronze Automaton. Autonomous, self-improving AI operating system by Metis Corp.",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "test": "vitest --run",
+    "test:watch": "vitest",
+    "lint": "turbo lint",
+    "db:migrate": "supabase db push",
+    "db:generate": "supabase gen types typescript --local > packages/db/src/types.ts"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.0",
+    "zod": "^3.24.0",
+    "tiktoken": "^1.0.18"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.15.0"
+}

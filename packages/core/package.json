@@ -1,0 +1,53 @@
+{
+  "name": "@talos/core",
+  "version": "8.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./types": {
+      "import": "./dist/types/index.js",
+      "types": "./dist/types/index.d.ts"
+    },
+    "./budget": {
+      "import": "./dist/budget/index.js",
+      "types": "./dist/budget/index.d.ts"
+    },
+    "./config": {
+      "import": "./dist/config/loader.js",
+      "types": "./dist/config/loader.d.ts"
+    },
+    "./router": {
+      "import": "./dist/router/index.js",
+      "types": "./dist/router/index.d.ts"
+    },
+    "./g0dm0d3": {
+      "import": "./dist/g0dm0d3/index.js",
+      "types": "./dist/g0dm0d3/index.d.ts"
+    },
+    "./hermes": {
+      "import": "./dist/hermes/index.js",
+      "types": "./dist/hermes/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest --run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.0"
+  }
+}

@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import {
   type SpendRecord,
   type SpendLedgerSummary,
@@ -25,10 +26,7 @@ export async function recordSpend(params: {
 }): Promise<SpendRecord> {
   const periodId = getCurrentMonthPeriod();
   const record = SpendRecordSchema.parse({
-    id: (() => {
-      const s = () => Math.random().toString(36).slice(2, 10);
-      return `${s()}-${s()}-${s()}`;
-    })(),
+    id: randomUUID(),
     agentId: params.agentId,
     providerId: params.providerId,
     tokensIn: params.tokensIn,

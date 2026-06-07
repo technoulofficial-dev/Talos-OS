@@ -60,7 +60,7 @@ services:
       - "8642:8642"
     environment:
       - NODE_ENV=development
-      - SUPABASE_URL=http://postgres:54321
+      - SUPABASE_URL=http://postgres:5432
       - OLLAMA_HOST=http://ollama:11434
       - REDIS_URL=redis://redis:6379
     depends_on:

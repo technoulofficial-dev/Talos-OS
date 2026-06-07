@@ -1,1 +1,9 @@
+.aider*
+.env
+.env.local
+.env.*.local
 node_modules/
+.talos/
+dist/
+.next/
+*.tsbuildinfo

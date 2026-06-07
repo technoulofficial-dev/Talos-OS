@@ -33,6 +33,42 @@
     "./hermes": {
       "import": "./dist/hermes/index.js",
       "types": "./dist/hermes/index.d.ts"
+    },
+    "./cortex": {
+      "import": "./dist/cortex/index.js",
+      "types": "./dist/cortex/index.d.ts"
+    },
+    "./ai-engine": {
+      "import": "./dist/ai-engine/index.js",
+      "types": "./dist/ai-engine/index.d.ts"
+    },
+    "./blueprint": {
+      "import": "./dist/blueprint/index.js",
+      "types": "./dist/blueprint/index.d.ts"
+    },
+    "./phoenix": {
+      "import": "./dist/phoenix/index.js",
+      "types": "./dist/phoenix/index.d.ts"
+    },
+    "./sandbox": {
+      "import": "./dist/sandbox/index.js",
+      "types": "./dist/sandbox/index.d.ts"
+    },
+    "./api": {
+      "import": "./dist/api/server.js",
+      "types": "./dist/api/server.d.ts"
+    },
+    "./council": {
+      "import": "./dist/council/index.js",
+      "types": "./dist/council/index.d.ts"
+    },
+    "./plugin": {
+      "import": "./dist/plugin/index.js",
+      "types": "./dist/plugin/index.d.ts"
+    },
+    "./graphify": {
+      "import": "./dist/graphify/index.js",
+      "types": "./dist/graphify/index.d.ts"
     }
   },
   "scripts": {
@@ -40,13 +76,15 @@
     "dev": "tsc --watch",
     "test": "vitest --run",
     "test:watch": "vitest",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "start": "node dist/api/server.js"
   },
   "dependencies": {
+    "@talos/db": "workspace:^",
     "zod": "^3.24.0"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
+    "@types/node": "^22.19.19",
     "typescript": "^5.8.3",
     "vitest": "^3.2.0"
   }

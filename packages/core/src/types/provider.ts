@@ -23,6 +23,7 @@ export const ProviderIdSchema = z.enum([
   "nvidia-nim",
   "openai",
   "anthropic",
+  "openrouter",
 ]);
 export type ProviderId = z.infer<typeof ProviderIdSchema>;
 

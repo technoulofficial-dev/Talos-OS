@@ -10,14 +10,21 @@
     "test:watch": "vitest",
     "lint": "turbo lint",
     "db:migrate": "supabase db push",
-    "db:generate": "supabase gen types typescript --local > packages/db/src/types.ts"
+    "db:generate": "supabase gen types typescript --local > packages/db/src/types.ts",
+    "od:install": "powershell -ExecutionPolicy Bypass -File scripts/design-tools.ps1 -Action install",
+    "od:open": "powershell -ExecutionPolicy Bypass -File scripts/design-tools.ps1 -Action open",
+    "od:status": "powershell -ExecutionPolicy Bypass -File scripts/design-tools.ps1 -Action status",
+    "od:tools": "powershell -ExecutionPolicy Bypass -File scripts/design-tools.ps1 -Action tools",
+    "magic:check": "powershell -ExecutionPolicy Bypass -File scripts/design-tools.ps1 -Action magic-check",
+    "dev:oc": "powershell -ExecutionPolicy Bypass -File scripts/start-opencode.ps1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
+    "tiktoken": "^1.0.18",
     "turbo": "^2.5.0",
     "typescript": "^5.8.3",
     "vitest": "^3.2.0",
-    "zod": "^3.24.0",
-    "tiktoken": "^1.0.18"
+    "zod": "^3.24.0"
   },
   "engines": {
     "node": ">=20.0.0",

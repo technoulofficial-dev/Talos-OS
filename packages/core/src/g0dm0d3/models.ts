@@ -1,70 +1,85 @@
 import type { G0DM0D3ModelInfo } from "../types/g0dm0d3.js";
 
+export const OWL_ALPHA_MODEL = "openrouter/owl-alpha";
+
 export const G0DM0D3_FREE_MODELS: G0DM0D3ModelInfo[] = [
   {
-    id: "meta-llama/llama-3-8b-instruct:free",
-    name: "Llama 3 8B Instruct (Free)",
-    contextLength: 8192,
-    description: "Meta's highly capable 8B instruction-tuned model, completely free.",
+    id: "openrouter/owl-alpha",
+    name: "Owl Alpha (Free, Top Priority)",
+    contextLength: 1_000_000,
+    description:
+      "OpenRouter's free agentic-optimized 1M-context model. Top-priority in Talos. WARNING: prompt/completion logging documented — do not paste secrets.",
   },
   {
-    id: "meta-llama/llama-3.1-8b-instruct:free",
-    name: "Llama 3.1 8B Instruct (Free)",
+    id: "qwen/qwen3-coder:free",
+    name: "Qwen3 Coder (Free)",
     contextLength: 131072,
-    description: "Meta's upgraded Llama 3.1 model with massive 128k context, completely free.",
+    description: "Qwen's coding-optimized free model.",
   },
   {
-    id: "google/gemma-2-9b-it:free",
-    name: "Gemma 2 9B IT (Free)",
-    contextLength: 8192,
-    description: "Google's lightweight, state-of-the-art 9B model optimized for instructions.",
-  },
-  {
-    id: "mistralai/mistral-7b-instruct:free",
-    name: "Mistral 7B Instruct (Free)",
-    contextLength: 32768,
-    description: "Mistral's powerful, high-performance 7B parameter instruction-tuned model.",
-  },
-  {
-    id: "microsoft/phi-3-medium-128k-instruct:free",
-    name: "Phi 3 Medium 128K (Free)",
+    id: "qwen/qwen3-next-80b-a3b-instruct:free",
+    name: "Qwen3 Next 80B (Free)",
     contextLength: 131072,
-    description: "Microsoft's efficient 14B model with extensive 128k context length.",
+    description: "Qwen's latest 80B instruction model, free tier.",
   },
   {
-    id: "microsoft/phi-3-mini-128k-instruct:free",
-    name: "Phi 3 Mini 128K (Free)",
+    id: "google/gemma-4-31b-it:free",
+    name: "Gemma 4 31B IT (Free)",
     contextLength: 131072,
-    description: "Microsoft's lightweight 3.8B model with extensive 128k context length.",
+    description: "Google's Gemma 4 31B instruction-tuned model, free.",
   },
   {
-    id: "qwen/qwen-2-7b-instruct:free",
-    name: "Qwen 2 7B Instruct (Free)",
-    contextLength: 32768,
-    description: "Alibaba's advanced, bilingual 7B instruction model.",
-  },
-  {
-    id: "nousresearch/hermes-3-llama-3.1-8b:free",
-    name: "Hermes 3 Llama 3.1 8B (Free)",
+    id: "google/gemma-4-26b-a4b-it:free",
+    name: "Gemma 4 26B A4B IT (Free)",
     contextLength: 131072,
-    description: "Nous Research's top-tier agentic fine-tune of Llama 3.1 8B.",
+    description: "Google's Gemma 4 26B variant, free.",
   },
   {
-    id: "openchat/openchat-7b:free",
-    name: "OpenChat 7B (Free)",
-    contextLength: 8192,
-    description: "Top-tier 7B parameter open-source model trained with C-RLFT.",
+    id: "nvidia/nemotron-3-super-120b-a12b:free",
+    name: "Nemotron 3 Super 120B (Free)",
+    contextLength: 131072,
+    description: "NVIDIA's Nemotron 3 Super 120B, free tier.",
   },
   {
-    id: "gryphe/mythomax-l2-13b:free",
-    name: "MythoMax L2 13B (Free)",
-    contextLength: 4096,
-    description: "A highly creative 13B model merge optimized for roleplay and long instructions.",
+    id: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+    name: "Nemotron 3 Nano Omni 30B (Free)",
+    contextLength: 131072,
+    description: "NVIDIA's Nemotron 3 Nano Omni with reasoning, free.",
+  },
+  {
+    id: "moonshotai/kimi-k2.6:free",
+    name: "Kimi K2.6 (Free)",
+    contextLength: 131072,
+    description: "Moonshot AI's Kimi K2.6, free tier.",
+  },
+  {
+    id: "openai/gpt-oss-120b:free",
+    name: "GPT-OSS 120B (Free)",
+    contextLength: 131072,
+    description: "OpenAI's open-source 120B model, free tier.",
+  },
+  {
+    id: "openai/gpt-oss-20b:free",
+    name: "GPT-OSS 20B (Free)",
+    contextLength: 131072,
+    description: "OpenAI's open-source 20B model, free tier.",
+  },
+  {
+    id: "z-ai/glm-4.5-air:free",
+    name: "GLM 4.5 Air (Free)",
+    contextLength: 131072,
+    description: "Zhipu AI's GLM 4.5 Air, free tier.",
+  },
+  {
+    id: "nvidia/nemotron-nano-9b-v2:free",
+    name: "Nemotron Nano 9B V2 (Free)",
+    contextLength: 131072,
+    description: "NVIDIA's Nemotron Nano 9B V2, free tier.",
   },
 ];
 
 /**
- * Find model info by ID, fallback to Llama 3.1 8B if not found.
+ * Find model info by ID, fallback to first available model if not found.
  */
 export function getModelInfo(modelId: string): G0DM0D3ModelInfo {
   const model = G0DM0D3_FREE_MODELS.find((m) => m.id === modelId || m.id === `${modelId}:free`);

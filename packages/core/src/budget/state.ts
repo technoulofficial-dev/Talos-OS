@@ -25,12 +25,16 @@ export function getCurrentHourPeriod(): string {
 }
 
 export function loadBudgetConfig(): BudgetConfig {
+  const env = (key: string, fallback: number): number => {
+    const val = (process.env as Record<string, string | undefined>)[key];
+    return val !== undefined ? parseFloat(val) : fallback;
+  };
   const raw = {
-    monthly_usd: parseFloat(process.env.BUDGET_MONTHLY_USD ?? String(DEFAULT_CONFIG.monthly_usd)),
-    hourly_usd: parseFloat(process.env.BUDGET_HOURLY_USD ?? String(DEFAULT_CONFIG.hourly_usd)),
-    per_task_tokens: parseInt(process.env.BUDGET_PER_TASK_TOKENS ?? String(DEFAULT_CONFIG.per_task_tokens), 10),
-    per_minute_requests: parseInt(process.env.BUDGET_PER_MINUTE_REQUESTS ?? String(DEFAULT_CONFIG.per_minute_requests), 10),
-    hard_kill_at: parseFloat(process.env.BUDGET_HARD_KILL_AT ?? String(DEFAULT_CONFIG.hard_kill_at)),
+    monthly_usd: env("BUDGET_MONTHLY_USD", DEFAULT_CONFIG.monthly_usd),
+    hourly_usd: env("BUDGET_HOURLY_USD", DEFAULT_CONFIG.hourly_usd),
+    per_task_tokens: parseInt((process.env as Record<string, string | undefined>)["BUDGET_PER_TASK_TOKENS"] ?? String(DEFAULT_CONFIG.per_task_tokens), 10),
+    per_minute_requests: parseInt((process.env as Record<string, string | undefined>)["BUDGET_PER_MINUTE_REQUESTS"] ?? String(DEFAULT_CONFIG.per_minute_requests), 10),
+    hard_kill_at: env("BUDGET_HARD_KILL_AT", DEFAULT_CONFIG.hard_kill_at),
   };
   return BudgetConfigSchema.parse(raw);
 }

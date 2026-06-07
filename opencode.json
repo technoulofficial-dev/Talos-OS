@@ -1,0 +1,103 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "browser": {
+      "type": "local",
+      "command": ["npx", "-y", "@playwright/mcp"],
+      "enabled": true,
+      "timeout": 30000
+    },
+    "memory": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-memory"],
+      "enabled": true,
+      "timeout": 10000
+    },
+    "github": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-github"],
+      "enabled": true,
+      "environment": {
+        "GITHUB_TOKEN": "{env:GITHUB_TOKEN}"
+      },
+      "timeout": 15000
+    },
+    "magic": {
+      "type": "local",
+      "command": ["npx", "-y", "@21st-dev/magic@latest"],
+      "enabled": true,
+      "environment": {
+        "TWENTY_FIRST_API_KEY": "{env:TWENTYFIRST_API_KEY}",
+        "API_KEY": "{env:TWENTYFIRST_API_KEY}"
+      },
+      "timeout": 60000
+    },
+    "open-design": {
+      "type": "local",
+      "command": ["npx", "-y", "open-design-mcp@latest"],
+      "enabled": false,
+      "environment": {
+        "OD_DAEMON_URL": "{env:OD_DAEMON_URL}"
+      },
+      "timeout": 30000,
+      "_note": "Requires open-design desktop app (subscription). Disabled for now."
+    },
+    "supabase": {
+      "type": "local",
+      "command": ["npx", "-y", "@supabase/mcp-server-supabase@latest"],
+      "enabled": true,
+      "environment": {
+        "SUPABASE_ACCESS_TOKEN": "{env:SUPABASE_ACCESS_TOKEN}"
+      },
+      "timeout": 15000
+    }
+  },
+  "agent": {
+    "deployment-engineer": {
+      "steps": 20
+    },
+    "platform-engineer": {
+      "steps": 20
+    },
+    "sre-engineer": {
+      "steps": 20
+    },
+    "code-reviewer": {
+      "steps": 20
+    },
+    "dependency-manager": {
+      "steps": 15
+    },
+    "docs-writer": {
+      "steps": 15
+    },
+    "git-workflow-manager": {
+      "steps": 12
+    },
+    "technical-writer": {
+      "steps": 15
+    },
+    "fullstack-developer": {
+      "steps": 25
+    },
+    "backend-developer": {
+      "steps": 20
+    },
+    "frontend-developer": {
+      "steps": 20
+    },
+    "docker-expert": {
+      "steps": 15
+    },
+    "test-writer": {
+      "steps": 15
+    },
+    "build-engineer": {
+      "steps": 15
+    }
+  },
+  "compaction": {
+    "auto": true,
+    "prune": true
+  }
+}

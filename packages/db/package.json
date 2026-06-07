@@ -1,0 +1,33 @@
+{
+  "name": "@talos/db",
+  "version": "0.1.0",
+  "description": "Talos OS database layer - Supabase integration",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./client": "./dist/client.js",
+    "./agents": "./dist/agents.js",
+    "./tasks": "./dist/tasks.js",
+    "./auctions": "./dist/auctions.js",
+    "./memory": "./dist/memory.js",
+    "./plugins": "./dist/plugins.js",
+    "./store": "./dist/store.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "lint": "tsc --noEmit",
+    "test": "vitest --run"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0",
+    "vitest": "^3.2.0"
+  }
+}

@@ -5,3 +5,4 @@ export * from "./budget.js";
 export * from "./cortex.js";
 export * from "./auction.js";
 export * from "./guild.js";
+export * from "./plugin.js";

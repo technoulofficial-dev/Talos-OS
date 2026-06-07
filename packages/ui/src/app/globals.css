@@ -1,0 +1,162 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Linear (MVE) design system — applied via scripts/apply-design-system.js */
+  --linear-bg-default: #08090A;
+  --linear-bg-subtle: #0D0E10;
+  --linear-bg-elevated: #161719;
+  --linear-bg-overlay: #1B1C1F;
+  --linear-border-default: #22232680;
+  --linear-border-subtle: #1A1B1E;
+  --linear-border-strong: #2A2B2F;
+  --linear-text-primary: #F7F8F8;
+  --linear-text-secondary: #B4B8BE;
+  --linear-text-tertiary: #62666D;
+  --linear-text-disabled: #3D4046;
+  --linear-text-accent: #5E6AD2;
+  --linear-accent-primary: #5E6AD2;
+  --linear-accent-primary-hover: #7170FF;
+  --linear-accent-secondary: #9F8FEF;
+  --linear-status-success: #4CB782;
+  --linear-status-warning: #E2B203;
+  --linear-status-danger: #EB5757;
+  --linear-status-info: #3D8BFD;
+  --linear-radius-sm: 4px;
+  --linear-radius-md: 6px;
+  --linear-radius-lg: 8px;
+  --linear-radius-xl: 12px;
+  --linear-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.32);
+  --linear-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.40);
+  --linear-shadow-glow: 0 0 12px rgba(94, 106, 210, 0.45);
+  --linear-shadow-glow-danger: 0 0 12px rgba(235, 87, 87, 0.50);
+
+  /* Bronze-Punk palette (legacy, used by panel/button components) */
+  --color-gunmetal: #1a1a1a;
+  --color-bronze: #b87333;
+  --color-bronze-light: #cd7f32;
+  --color-cyan: #00e5ff;
+}
+
+@layer base {
+  html {
+    background-color: var(--linear-bg-default);
+    color: var(--linear-text-primary);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+  body {
+    background:
+      radial-gradient(ellipse at top, rgba(94, 106, 210, 0.06), transparent 60%),
+      radial-gradient(ellipse at bottom, rgba(159, 143, 239, 0.04), transparent 60%),
+      var(--linear-bg-default);
+    color: var(--linear-text-primary);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection {
+    background: var(--linear-accent-primary);
+    color: var(--linear-text-primary);
+  }
+}
+
+@layer components {
+  /* Linear panel (modern, subtle) */
+  .panel {
+    @apply bg-linear-bg-elevated border border-linear-border-subtle rounded-md relative overflow-hidden;
+  }
+  .panel::before {
+    content: "";
+    @apply absolute inset-0 pointer-events-none;
+    background: linear-gradient(
+      180deg,
+      rgba(94, 106, 210, 0.04) 0%,
+      transparent 30%,
+      transparent 70%,
+      rgba(94, 106, 210, 0.02) 100%
+    );
+  }
+
+  /* Linear accent border (for active/highlighted panels) */
+  .accent-border {
+    @apply relative border border-linear-accent;
+  }
+  .accent-border::after {
+    content: "";
+    @apply absolute inset-0 pointer-events-none rounded-md;
+    box-shadow: 0 0 12px rgba(94, 106, 210, 0.45);
+  }
+
+  /* Linear primary button */
+  .btn-primary {
+    @apply px-4 py-2 bg-linear-accent text-linear-text font-medium text-sm transition-all rounded-md;
+  }
+  .btn-primary:hover {
+    @apply bg-linear-accent-hover;
+    box-shadow: 0 0 12px rgba(94, 106, 210, 0.45);
+  }
+
+  /* Linear secondary button */
+  .btn-secondary {
+    @apply px-4 py-2 bg-linear-bg-elevated border border-linear-border-strong text-linear-text-secondary font-medium text-sm transition-all rounded-md;
+  }
+  .btn-secondary:hover {
+    @apply bg-linear-bg-overlay text-linear-text border-linear-accent;
+  }
+
+  /* Legacy Bronze-Punk button (kept for backward compat) */
+  .btn-cyan {
+    @apply px-4 py-2 bg-cyan-500/10 border border-cyan-500 text-cyan-500 font-mono uppercase tracking-wider text-sm transition-all;
+  }
+  .btn-cyan:hover {
+    @apply bg-cyan-500/20;
+    box-shadow: 0 0 10px rgba(0, 229, 255, 0.5);
+  }
+
+  .btn-bronze {
+    @apply px-4 py-2 bg-bronze-400/10 border border-bronze-400 text-bronze-300 font-mono uppercase tracking-wider text-sm transition-all;
+  }
+  .btn-bronze:hover {
+    @apply bg-bronze-400/20;
+    box-shadow: 0 0 10px rgba(184, 115, 51, 0.5);
+  }
+
+  /* Status indicators (Linear palette) */
+  .status-healthy {
+    @apply text-linear-status-success;
+  }
+  .status-degraded {
+    @apply text-linear-status-warning;
+  }
+  .status-failed {
+    @apply text-linear-status-danger;
+  }
+  .status-offline {
+    @apply text-linear-text-disabled;
+  }
+}
+
+@layer utilities {
+  /* CRT scanline overlay */
+  .scanlines {
+    position: relative;
+  }
+  .scanlines::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      transparent 50%,
+      rgba(0, 0, 0, 0.05) 50%
+    );
+    background-size: 100% 4px;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  /* Rune text */
+  .rune {
+    @apply font-display text-cyan-500;
+    text-shadow: 0 0 4px #00e5ff, 0 0 8px #00e5ff;
+  }
+}

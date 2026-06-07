@@ -1,3 +1,18 @@
+# Talos OS pnpm workspace configuration
+#
+# Defines which directories are part of the Talos monorepo.
+# - packages/* contains the 5 core packages:
+#     * core      — TypeScript engine (router, budget, AI, G0DM0D3, etc.)
+#     * ui        — Next.js Mission Control dashboard
+#     * db        — Supabase DB layer
+#     * cli       — talos-cli operator tool
+#     * memory    — Cortex (user context) + Nornir (memory cron)
+# - talos-agents/* contains the 13 specialised agents that make up the swarm:
+#     Loom, Odin, Mimir, Brokkr, OpenCode, Muninn, Huginn, Sage,
+#     Eitri, Bragi, Nornir, System, Harvester.
+#
+# Add new packages or agents under one of these globs and pnpm will
+# pick them up automatically.
 packages:
   - "packages/*"
   - "talos-agents/*"

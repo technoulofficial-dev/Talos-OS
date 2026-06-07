@@ -1,0 +1,63 @@
+{
+  "version": "0.2.0",
+  "setupDate": "2026-06-03",
+  "languages": [
+    "node",
+    "docker",
+    "markdown"
+  ],
+  "framework": null,
+  "packageManager": "pnpm",
+  "agents": [
+    "backend-developer",
+    "frontend-developer",
+    "fullstack-developer",
+    "websocket-engineer",
+    "typescript-pro",
+    "javascript-pro",
+    "react-specialist",
+    "vue-expert",
+    "angular-architect",
+    "nextjs-developer",
+    "deployment-engineer",
+    "devops-engineer",
+    "docker-expert",
+    "platform-engineer",
+    "sre-engineer",
+    "code-reviewer",
+    "build-engineer",
+    "dependency-manager",
+    "docs-writer",
+    "git-workflow-manager",
+    "test-writer",
+    "technical-writer"
+  ],
+  "skills": [
+    "git-release",
+    "test-patterns",
+    "dependency-audit",
+    "changelog-generate",
+    "ci-pipeline",
+    "talos-architecture",
+    "talos-ui-patterns",
+    "agents-md-improver",
+    "agents-md-revise",
+    "code-architect",
+    "code-explorer",
+    "code-review",
+    "code-reviewer",
+    "feature-dev",
+    "frontend-design",
+    "mcp-builder",
+    "security-review",
+    "skill-creator",
+    "acpx",
+    "customize-opencode"
+  ],
+  "modelStrategy": null,
+  "mcp": [
+    "browser",
+    "memory",
+    "github"
+  ]
+}

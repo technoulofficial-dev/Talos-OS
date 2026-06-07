@@ -1,0 +1,40 @@
+# Talos OS v8.0 — Core Docker Image
+# Multi-stage build for the Talos Core orchestrator process
+
+FROM node:20-alpine AS base
+WORKDIR /app
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+
+FROM base AS deps
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY packages/core/package.json ./packages/core/
+COPY packages/db/package.json ./packages/db/
+COPY packages/memory/package.json ./packages/memory/
+COPY talos-agents/ ./talos-agents/
+RUN pnpm install --frozen-lockfile --prod=false
+
+FROM base AS builder
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+RUN pnpm build
+
+FROM base AS runner
+ENV NODE_ENV=production
+
+COPY --from=builder /app/packages/core/dist ./packages/core/dist
+COPY --from=builder /app/packages/db/dist ./packages/db/dist
+COPY --from=builder /app/packages/memory/dist ./packages/memory/dist
+COPY --from=builder /app/talos-agents ./talos-agents
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
+COPY --from=builder /app/packages/core/package.json ./packages/core/package.json
+COPY --from=builder /app/packages/db/package.json ./packages/db/package.json
+COPY --from=builder /app/packages/memory/package.json ./packages/memory/package.json
+
+EXPOSE 8642
+
+ENV TALOS_PORT=8642
+ENV NODE_ENV=production
+
+CMD ["node", "packages/core/dist/api/server.js"]

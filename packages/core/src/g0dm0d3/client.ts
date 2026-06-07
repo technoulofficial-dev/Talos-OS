@@ -14,8 +14,8 @@ export async function executeG0DM0D3(
   // Apply elder-plinius G0DM0D3 wrapper
   const { finalPrompt, finalSystemPrompt } = wrapPrompt(request.prompt, request.systemPrompt);
 
-  const apiKey = process.env.OPENROUTER_API_KEY || "sk-or-v1-0000000000000000000000000000000000000000000000000000000000000000"; // Default anonymous key
-  const baseUrl = process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
+  const apiKey = (process.env as Record<string, string | undefined>)["OPENROUTER_API_KEY"] ?? "sk-or-v1-0000000000000000000000000000000000000000000000000000000000000000"; // Default anonymous key
+  const baseUrl = (process.env as Record<string, string | undefined>)["OPENROUTER_BASE_URL"] ?? "https://openrouter.ai/api/v1";
 
   // Build the message context
   const messages = [
@@ -37,7 +37,7 @@ export async function executeG0DM0D3(
           "X-Title": "Talos OS v8.0",
         },
         body: JSON.stringify({
-          model: currentModel.endsWith(":free") ? currentModel : `${currentModel}:free`,
+          model: currentModel,
           messages,
           temperature: request.temperature ?? 0.4,
           max_tokens: request.maxTokens ?? 4096,

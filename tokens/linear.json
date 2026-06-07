@@ -1,0 +1,148 @@
+{
+  "_comment": "Linear-style design tokens. Replace this file's contents with the output of `od_get_project` once the open-design MCP is online and a Linear-themed project exists in the daemon.",
+  "_source": "Hand-curated from Linear.app public design references. Values approximate.",
+  "meta": {
+    "name": "Linear (Talos MVE)",
+    "version": "1.0.0",
+    "mode": "dark"
+  },
+  "color": {
+    "background": {
+      "default": "#08090A",
+      "subtle": "#0D0E10",
+      "elevated": "#161719",
+      "overlay": "#1B1C1F"
+    },
+    "border": {
+      "default": "#22232680",
+      "subtle": "#1A1B1E",
+      "strong": "#2A2B2F"
+    },
+    "text": {
+      "primary": "#F7F8F8",
+      "secondary": "#B4B8BE",
+      "tertiary": "#62666D",
+      "disabled": "#3D4046",
+      "accent": "#5E6AD2"
+    },
+    "accent": {
+      "primary": "#5E6AD2",
+      "primaryHover": "#7170FF",
+      "secondary": "#9F8FEF"
+    },
+    "status": {
+      "success": "#4CB782",
+      "warning": "#E2B203",
+      "danger": "#EB5757",
+      "info": "#3D8BFD"
+    },
+    "gradient": {
+      "panelTop": "linear-gradient(180deg, rgba(94, 106, 210, 0.04) 0%, transparent 30%)",
+      "panelBottom": "linear-gradient(0deg, rgba(61, 139, 253, 0.03) 0%, transparent 30%)"
+    }
+  },
+  "typography": {
+    "fontFamily": {
+      "sans": "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif",
+      "mono": "'JetBrains Mono', 'Fira Code', ui-monospace, monospace",
+      "display": "'Cinzel', 'Inter Display', serif"
+    },
+    "fontSize": {
+      "xs": "11px",
+      "sm": "12px",
+      "base": "13px",
+      "md": "14px",
+      "lg": "16px",
+      "xl": "20px",
+      "2xl": "24px",
+      "3xl": "32px"
+    },
+    "lineHeight": {
+      "tight": "1.2",
+      "normal": "1.5",
+      "loose": "1.75"
+    },
+    "fontWeight": {
+      "regular": 400,
+      "medium": 500,
+      "semibold": 600,
+      "bold": 700
+    },
+    "letterSpacing": {
+      "tight": "-0.01em",
+      "normal": "0",
+      "wide": "0.05em"
+    }
+  },
+  "radius": {
+    "none": "0px",
+    "sm": "4px",
+    "md": "6px",
+    "lg": "8px",
+    "xl": "12px",
+    "full": "9999px"
+  },
+  "spacing": {
+    "0": "0px",
+    "1": "4px",
+    "2": "8px",
+    "3": "12px",
+    "4": "16px",
+    "5": "20px",
+    "6": "24px",
+    "8": "32px",
+    "10": "40px",
+    "12": "48px",
+    "16": "64px"
+  },
+  "shadow": {
+    "sm": "0 1px 2px rgba(0, 0, 0, 0.4)",
+    "md": "0 2px 4px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.2)",
+    "lg": "0 8px 24px rgba(0, 0, 0, 0.5), 0 2px 4px rgba(0, 0, 0, 0.3)",
+    "glow": "0 0 0 1px rgba(94, 106, 210, 0.4), 0 0 12px rgba(94, 106, 210, 0.3)",
+    "glowDanger": "0 0 0 1px rgba(235, 87, 87, 0.4), 0 0 12px rgba(235, 87, 87, 0.3)"
+  },
+  "animation": {
+    "duration": {
+      "fast": "120ms",
+      "normal": "200ms",
+      "slow": "320ms"
+    },
+    "easing": {
+      "easeOut": "cubic-bezier(0.16, 1, 0.3, 1)",
+      "easeInOut": "cubic-bezier(0.4, 0, 0.2, 1)"
+    }
+  },
+  "components": {
+    "panel": {
+      "background": "var(--linear-bg-elevated)",
+      "border": "1px solid var(--linear-border-default)",
+      "borderRadius": "var(--linear-radius-lg)",
+      "padding": "var(--linear-spacing-4)",
+      "boxShadow": "var(--linear-shadow-sm)"
+    },
+    "button": {
+      "primary": {
+        "background": "var(--linear-accent-primary)",
+        "color": "var(--linear-text-primary)",
+        "borderRadius": "var(--linear-radius-md)",
+        "padding": "6px 12px",
+        "fontWeight": 500
+      },
+      "secondary": {
+        "background": "var(--linear-bg-elevated)",
+        "color": "var(--linear-text-secondary)",
+        "border": "1px solid var(--linear-border-default)",
+        "borderRadius": "var(--linear-radius-md)",
+        "padding": "6px 12px"
+      }
+    },
+    "badge": {
+      "background": "var(--linear-bg-overlay)",
+      "color": "var(--linear-text-secondary)",
+      "borderRadius": "var(--linear-radius-full)",
+      "padding": "2px 8px",
+      "fontSize": "var(--linear-fontSize-xs)"
+    }
+  }
+}

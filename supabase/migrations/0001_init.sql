@@ -1,6 +1,10 @@
 -- Talos OS v8.0 — Initial Database Migration
 -- All tables prefixed talos_* with RLS on user_id
+-- Run: supabase db push
 
+-- ============================================================
+-- Guilds
+-- ============================================================
 CREATE TABLE IF NOT EXISTS talos_guilds (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL UNIQUE,
@@ -12,12 +16,15 @@ CREATE TABLE IF NOT EXISTS talos_guilds (
   created_at timestamptz DEFAULT now()
 );
 
+-- ============================================================
+-- Devices (G0DM0D3 registry)
+-- ============================================================
 CREATE TABLE IF NOT EXISTS talos_devices (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   hostname text NOT NULL,
   local_endpoint_url text NOT NULL,
   has_local_ai boolean DEFAULT true,
-  status text DEFAULT 'online',
+  status text DEFAULT 'online' CHECK (status IN ('online', 'offline', 'decommissioned')),
   capability_score float DEFAULT 0.5,
   models_available jsonb DEFAULT '[]',
   vram_estimate_gb float,
@@ -26,6 +33,9 @@ CREATE TABLE IF NOT EXISTS talos_devices (
   updated_at timestamptz DEFAULT now()
 );
 
+-- ============================================================
+-- Agents
+-- ============================================================
 CREATE TABLE IF NOT EXISTS talos_agents (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   agent_id text NOT NULL UNIQUE,
@@ -43,17 +53,20 @@ CREATE TABLE IF NOT EXISTS talos_agents (
   version text DEFAULT '1.0.0',
   capability_score float DEFAULT 0.5,
   current_load float DEFAULT 0.0,
-  status text DEFAULT 'idle',
+  status text DEFAULT 'idle' CHECK (status IN ('idle','bidding','executing','offline','provisioning','error')),
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
 );
 
+-- ============================================================
+-- Tasks
+-- ============================================================
 CREATE TABLE IF NOT EXISTS talos_tasks (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   description text NOT NULL,
   origin_agent text NOT NULL DEFAULT 'system',
-  status text DEFAULT 'pending',
-  priority text DEFAULT 'normal',
+  status text DEFAULT 'pending' CHECK (status IN ('pending','queued','auctioning','assigned','executing','reviewing','completed','failed','cancelled','timeout')),
+  priority text DEFAULT 'normal' CHECK (priority IN ('low','normal','high','critical')),
   required_skills jsonb DEFAULT '[]',
   max_tokens int DEFAULT 100000,
   max_cost_usd float DEFAULT 10,
@@ -78,18 +91,24 @@ CREATE TABLE IF NOT EXISTS talos_tasks (
   completed_at timestamptz
 );
 
+-- ============================================================
+-- Auctions
+-- ============================================================
 CREATE TABLE IF NOT EXISTS talos_auctions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   task_id uuid REFERENCES talos_tasks(id),
   announcement jsonb NOT NULL,
   bids jsonb NOT NULL DEFAULT '[]',
   winner_agent_id text,
-  status text DEFAULT 'announced',
+  status text DEFAULT 'announced' CHECK (status IN ('announced','bidding','settled','executing','completed','failed','timeout')),
   settled_at timestamptz,
   performance_score float,
   created_at timestamptz DEFAULT now()
 );
 
+-- ============================================================
+-- User Cortex (infinite memory)
+-- ============================================================
 CREATE TABLE IF NOT EXISTS talos_cortex (
   user_id uuid PRIMARY KEY,
   identity_core jsonb NOT NULL DEFAULT '{}',
@@ -98,6 +117,9 @@ CREATE TABLE IF NOT EXISTS talos_cortex (
   updated_at timestamptz DEFAULT now()
 );
 
+-- ============================================================
+-- Nornir Episodic Markers
+-- ============================================================
 CREATE TABLE IF NOT EXISTS talos_nornir_markers (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL,
@@ -110,6 +132,22 @@ CREATE TABLE IF NOT EXISTS talos_nornir_markers (
   created_at timestamptz DEFAULT now()
 );
 
+-- ============================================================
+-- Memory Vectors (file-based memory integration)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS talos_memory_vectors (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  source_path text NOT NULL,
+  chunk_text text NOT NULL,
+  embedding vector(1536),
+  metadata jsonb DEFAULT '{}',
+  created_at timestamptz DEFAULT now()
+);
+
+-- ============================================================
+-- Spend Ledger (Budget tracking)
+-- ============================================================
 CREATE TABLE IF NOT EXISTS talos_spend_ledger (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   agent_id text NOT NULL,
@@ -123,12 +161,18 @@ CREATE TABLE IF NOT EXISTS talos_spend_ledger (
   created_at timestamptz DEFAULT now()
 );
 
+-- ============================================================
+-- Settings (master runtime config mirror)
+-- ============================================================
 CREATE TABLE IF NOT EXISTS talos_settings (
   key text PRIMARY KEY,
   value jsonb NOT NULL,
   updated_at timestamptz DEFAULT now()
 );
 
+-- ============================================================
+-- Plugins (Living Blueprint registry)
+-- ============================================================
 CREATE TABLE IF NOT EXISTS talos_plugins (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL UNIQUE,
@@ -141,6 +185,9 @@ CREATE TABLE IF NOT EXISTS talos_plugins (
   updated_at timestamptz DEFAULT now()
 );
 
+-- ============================================================
+-- Audit Trail
+-- ============================================================
 CREATE TABLE IF NOT EXISTS talos_audit_trail (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   event_type text NOT NULL,
@@ -150,10 +197,15 @@ CREATE TABLE IF NOT EXISTS talos_audit_trail (
   created_at timestamptz DEFAULT now()
 );
 
+-- ============================================================
+-- Indexes
+-- ============================================================
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON talos_tasks(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_agent ON talos_tasks(assigned_agent);
 CREATE INDEX IF NOT EXISTS idx_devices_status ON talos_devices(status);
 CREATE INDEX IF NOT EXISTS idx_spend_period ON talos_spend_ledger(period_id);
 CREATE INDEX IF NOT EXISTS idx_spend_agent ON talos_spend_ledger(agent_id);
 CREATE INDEX IF NOT EXISTS idx_nornir_user ON talos_nornir_markers(user_id);
+CREATE INDEX IF NOT EXISTS idx_memory_vectors_user ON talos_memory_vectors(user_id);
 CREATE INDEX IF NOT EXISTS idx_audit_agent ON talos_audit_trail(agent_id);
+CREATE INDEX IF NOT EXISTS idx_audit_task ON talos_audit_trail(task_id);

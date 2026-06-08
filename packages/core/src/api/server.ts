@@ -16,6 +16,7 @@ import { addTriple, queryTriples, getStats, deleteTriple, clearGraph, searchByEn
 import { createWorkflow, executeWorkflow, getRun, listAllWorkflows, listAllRuns, validateWorkflow, getStoreLocation } from "../workflow/index.js";
 import { harvestSkill, type SkillSource } from "../harvester/index.js";
 import { requirePermission, extractAgentId } from "../middleware/permissions.js";
+import { createAgent, getAgent, listAgents, updateAgent, deleteAgent, seedAgents, type AgentConfig } from "../agent/index.js";
 import type { z } from "zod";
 import { WorkflowNodeSchema } from "../workflow/types.js";
 
@@ -207,6 +208,69 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
       const tools = (body.tools ?? []).map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema ?? {} }));
       const agent = await registerExternalAgentFromMCP(body.name, body.mcpUrl, tools, body.capabilities ?? []);
       return sendJson(res, 201, { success: true, data: agent, timestamp: new Date().toISOString() });
+    }
+
+    // Agent CRUD: list all agents
+    if (url.pathname === "/v1/agents" && method === "GET") {
+      const status = url.searchParams.get("status") as AgentConfig["agentId"] | null;
+      const agents = listAgents(status as Parameters<typeof listAgents>[0] ?? undefined);
+      return sendJson(res, 200, { success: true, data: agents, timestamp: new Date().toISOString() });
+    }
+
+    // Agent CRUD: create agent
+    if (url.pathname === "/v1/agents" && method === "POST") {
+      const callerAgentId = extractAgentId(req, url);
+      const perm = await requirePermission(callerAgentId, "create_agents");
+      if (perm.denied) return sendJson(res, perm.status!, { success: false, error: perm.body ? JSON.parse(perm.body).error : "Forbidden", timestamp: new Date().toISOString() });
+      const body = await readBody<AgentConfig>(req);
+      if (!body.agentId || !body.name || !body.role) {
+        return sendJson(res, 400, { success: false, error: "agentId, name, and role required", timestamp: new Date().toISOString() });
+      }
+      try {
+        const agent = await createAgent(body);
+        return sendJson(res, 201, { success: true, data: agent, timestamp: new Date().toISOString() });
+      } catch (err) {
+        return sendJson(res, 409, { success: false, error: (err as Error).message, timestamp: new Date().toISOString() });
+      }
+    }
+
+    // Agent CRUD: seed agents from config
+    if (url.pathname === "/v1/agents/seed" && method === "POST") {
+      const callerAgentId = extractAgentId(req, url);
+      const perm = await requirePermission(callerAgentId, "create_agents");
+      if (perm.denied) return sendJson(res, perm.status!, { success: false, error: perm.body ? JSON.parse(perm.body).error : "Forbidden", timestamp: new Date().toISOString() });
+      const count = await seedAgents();
+      return sendJson(res, 200, { success: true, data: { seeded: count }, timestamp: new Date().toISOString() });
+    }
+
+    // Agent CRUD: get agent by ID
+    if (url.pathname.match(/^\/v1\/agents\/[^/]+$/) && method === "GET") {
+      const agentId = url.pathname.split("/")[3]!;
+      const agent = getAgent(agentId);
+      if (!agent) return sendJson(res, 404, { success: false, error: "Agent not found", timestamp: new Date().toISOString() });
+      return sendJson(res, 200, { success: true, data: agent, timestamp: new Date().toISOString() });
+    }
+
+    // Agent CRUD: update agent
+    if (url.pathname.match(/^\/v1\/agents\/[^/]+$/) && method === "PUT") {
+      const agentId = url.pathname.split("/")[3]!;
+      const callerAgentId = extractAgentId(req, url);
+      const perm = await requirePermission(callerAgentId, "modify_config");
+      if (perm.denied) return sendJson(res, perm.status!, { success: false, error: perm.body ? JSON.parse(perm.body).error : "Forbidden", timestamp: new Date().toISOString() });
+      const body = await readBody<Partial<Omit<AgentConfig, "agentId">>>(req);
+      const agent = await updateAgent(agentId, body);
+      if (!agent) return sendJson(res, 404, { success: false, error: "Agent not found", timestamp: new Date().toISOString() });
+      return sendJson(res, 200, { success: true, data: agent, timestamp: new Date().toISOString() });
+    }
+
+    // Agent CRUD: delete agent (soft: status=offline)
+    if (url.pathname.match(/^\/v1\/agents\/[^/]+$/) && method === "DELETE") {
+      const agentId = url.pathname.split("/")[3]!;
+      const callerAgentId = extractAgentId(req, url);
+      const perm = await requirePermission(callerAgentId, "create_agents");
+      if (perm.denied) return sendJson(res, perm.status!, { success: false, error: perm.body ? JSON.parse(perm.body).error : "Forbidden", timestamp: new Date().toISOString() });
+      const removed = await deleteAgent(agentId);
+      return sendJson(res, removed ? 200 : 404, { success: removed, data: { removed }, timestamp: new Date().toISOString() });
     }
 
     // Graphify: add triple

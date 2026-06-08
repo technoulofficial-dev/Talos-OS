@@ -13,6 +13,7 @@ import { installPlugin, uninstallPlugin, healthCheck, healthCheckAll, listPlugin
 import type { ACPRequest } from "../types/plugin.js";
 import { addTriple, queryTriples, getStats, deleteTriple, clearGraph, searchByEntity, searchByPredicate, findPath } from "../graphify/index.js";
 import { createWorkflow, executeWorkflow, getRun, listAllWorkflows, listAllRuns, validateWorkflow, getStoreLocation } from "../workflow/index.js";
+import { harvestSkill, type SkillSource } from "../harvester/index.js";
 import type { z } from "zod";
 import { WorkflowNodeSchema } from "../workflow/types.js";
 
@@ -249,6 +250,20 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
       const maxDepth = url.searchParams.get("maxDepth") ? Number(url.searchParams.get("maxDepth")) : undefined;
       const paths = await findPath(from, to, maxDepth);
       return sendJson(res, 200, { success: true, data: paths, timestamp: new Date().toISOString() });
+    }
+
+    // Harvester: ingest skill from external source
+    if (url.pathname === "/v1/harvester/ingest" && method === "POST") {
+      const body = await readBody<{ source: SkillSource; skipDb?: boolean }>(req);
+      if (!body.source?.identifier || !body.source?.license) {
+        return sendJson(res, 400, { success: false, error: "source.identifier and source.license required", timestamp: new Date().toISOString() });
+      }
+      try {
+        const result = await harvestSkill(body.source, { skipDb: body.skipDb });
+        return sendJson(res, result.success ? 201 : 422, { success: result.success, data: result, timestamp: new Date().toISOString() });
+      } catch (err) {
+        return sendJson(res, 500, { success: false, error: (err as Error).message, timestamp: new Date().toISOString() });
+      }
     }
 
     // Workflow: create

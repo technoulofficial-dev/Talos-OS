@@ -5,6 +5,60 @@ All notable changes to Talos OS will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1] - 2026-06-07
+
+### Added
+
+#### Foundation Repair (1235 insertions, 14 files)
+- **RLS for all orphaned tables** — 0004_rls.sql applies row-level security to 12 tables (bans, council_sessions, council_reports, council_opinions, council_ballots, eitri_fabrications, loom_auctions, loom_auction_bids, loom_task_bounties, loom_tasks, loom_task_assignments, plugin_configs)
+- **pgvector extension** enabled for vector search
+- **4 new @talos/db modules**: `devices.ts` (197 lines), `spend_ledger.ts` (160 lines), `audit_trail.ts` (135 lines), `settings.ts` (156 lines) — all follow optional-client pattern
+- **Dual-mode DB wiring**: `registry.ts`, `ledger.ts`, `trace.ts` — opt-in via env flags, in-memory always runs as fallback
+- **Guild permission middleware** (`middleware/permissions.ts`, 99 lines) — `checkGuildPermission()`, `requirePermission()`, `extractAgentId()` enforced on 6 server endpoints
+- **Loom DB bridge** — `syncAgentToDb()` on register/load/score changes, auction sync on announce/settle when `TALOS_LOOM_DB_ENABLED=true`
+
+#### AI Capacity Hardening (287 insertions, 5 files)
+- **Circuit breaker** — 3 failures in 1 minute → 5-minute cooldown per provider
+- **Force-local mode** — `TALOS_FORCE_LOCAL=true` routes everything to Ollama (zero-cost, airgapped)
+- **Provider budget tracker** — 500K tokens/day, 500 requests/day per provider (auto-resets daily)
+- **Emergency kill switch** — `TALOS_KILL_SWITCH=true` blocks all cloud API calls (local Ollama only), also toggled at runtime via `/v1/capacity`
+- **`GET /v1/capacity` endpoint** — circuit states, provider usage, force-local and kill-switch status
+
+#### Workflow Output Compression (128 insertions, 4 files)
+- **Node output compression** — outputs >10K chars truncated to save context window
+- **Graphify prompt cache** — stores/retrieves frequently-used prompts via knowledge graph
+- **Nornir Verdandi LLM fix** — removed invalid `talos:fast` model, added temperature 0.3
+
+#### Harvester Phase 3
+- License check (SPDX → allowlist) → LLM extraction → validation → DB registration
+- `POST /v1/harvester/ingest` endpoint (returns 422 on extraction failure)
+
+#### Template Resolution
+- `{{nodeId.field}}` variable interpolation in workflow node configs
+- Node outputs injected flat into `run.variables[node.id]`
+- `resolveVariables()` exported for direct use
+
+#### Additional
+- 22 memory tests for `@talos/memory`
+- 5 reusable UI components (AgentCard, StatusBadge, MetricCard, SearchBar, DataTable)
+- Mission Control MemoryView, BlueprintView, ChatView
+- OpenRouter models updated to 12 current free models
+- Full documentation system (28 files, ~400KB)
+- v0.8.0 tagged and GitHub release published
+
+### Changed
+- All provider calls in `routeUnlimited` now tracked via `recordTrace()` (structured audit logging)
+- `/v1/capacity` response now includes `killSwitch` field
+- `.env.example` updated with 9 env flags (4 dual-mode + force-local + kill-switch + owl-alpha + workflow-code + loom-db)
+- Build: 5/5 packages via turbo
+- Tests: 237 pass, 4 skipped, 1 pre-existing council failure
+
+### Security
+- RLS enforced on all 12 orphaned tables (council, bans, eitri, loom, plugin_configs)
+- Guild permissions enforced on 6 server endpoints (execute_tasks, create_agents, write_own_memory, access_network, modify_config)
+- Emergency kill switch for immediate cloud API shutdown
+- Workflow output compression prevents context window overflow
+
 ## [0.8.0] - 2026-06-07
 
 ### Added

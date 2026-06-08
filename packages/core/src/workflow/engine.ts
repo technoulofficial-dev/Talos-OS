@@ -14,6 +14,7 @@ import { routeUnlimited } from "../ai-engine/router.js";
 import { executeTool } from "../plugin/mcp.js";
 import { createSession, executeSession } from "../council/session.js";
 import { addTriple, queryTriples } from "../graphify/store.js";
+import { compressOutput } from "./compress.js";
 
 const workflows = new Map<string, WorkflowDefinition>();
 const runs = new Map<string, WorkflowRun>();
@@ -495,7 +496,8 @@ async function runNode(workflow: WorkflowDefinition, run: WorkflowRun, node: Wor
 
   const attempt = async (): Promise<void> => {
     try {
-      nodeRun.output = await withTimeout(executor(ctx), node.timeoutMs);
+      const rawOutput = await withTimeout(executor(ctx), node.timeoutMs);
+      nodeRun.output = compressOutput(rawOutput);
       nodeRun.state = "completed";
       nodeRun.completedAt = new Date();
       nodeRun.durationMs = nodeRun.completedAt.getTime() - (nodeRun.startedAt?.getTime() ?? Date.now());

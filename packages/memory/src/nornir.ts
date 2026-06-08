@@ -219,10 +219,10 @@ async function generateThreadDigest(snapshot: {
     .join("\n");
 
   const response = await routeUnlimited({
-    prompt: `Generate a concise thread digest (1-2 sentences) summarizing the key context from this conversation:\n\n${messageText}`,
+    prompt: `You are Verdandi, the Present Fate. Generate a concise thread digest (2-3 sentences) summarizing the key context, decisions, and current state from this conversation. Focus on what matters for future interactions:\n\n${messageText}`,
     agentId: "nornir-verdandi",
-    model: "talos:fast",
     maxTokens: 200,
+    temperature: 0.3,
   });
 
   return response.output;

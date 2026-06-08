@@ -15,3 +15,12 @@ export {
   routeUnlimited,
   checkProviderHealth,
 } from "./router.js";
+
+export {
+  isCircuitOpen,
+  getCircuitState,
+  resetCircuit,
+  isForceLocal,
+  getProviderUsage,
+  getAllProviderUsage,
+} from "./capacity.js";

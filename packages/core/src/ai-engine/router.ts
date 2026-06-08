@@ -4,6 +4,14 @@ import { OWL_ALPHA_MODEL } from "../g0dm0d3/models.js";
 import { decide as budgetDecide } from "../budget/gate.js";
 import { buildEstimate } from "../budget/tokens.js";
 import type { BudgetDecision } from "../types/budget.js";
+import {
+  isCircuitOpen,
+  recordProviderFailure,
+  recordProviderSuccess,
+  isForceLocal,
+  trackProviderUsage,
+  isProviderBudgetExceeded,
+} from "./capacity.js";
 
 export type ProviderId =
   | "g0dm0d3"
@@ -307,59 +315,85 @@ export async function routeUnlimited(request: ModelRequest): Promise<ModelRespon
   const errors: Array<{ provider: string; error: string }> = [];
   const ollamaHost = env("OLLAMA_HOST", "http://127.0.0.1:11434");
 
+  // Force-local mode: route everything to Ollama, skip all cloud providers
+  if (isForceLocal()) {
+    const alive = await isLocalOllamaAlive(ollamaHost, 3000);
+    if (alive) {
+      try {
+        const result = await callOllama(request);
+        recordProviderSuccess("ollama");
+        return { ...result, latencyMs: Date.now() - start, unlimited: true };
+      } catch (err) {
+        recordProviderFailure("ollama");
+        throw new Error(`Force-local mode: Ollama failed — ${(err as Error).message}`);
+      }
+    }
+    throw new Error("Force-local mode: Ollama not reachable");
+  }
+
   if (request.preferLocal !== false) {
     const alive = await isLocalOllamaAlive(ollamaHost, 3000);
     if (alive) {
       try {
         const result = await callOllama(request);
+        recordProviderSuccess("ollama");
         return { ...result, latencyMs: Date.now() - start, unlimited: true };
       } catch (err) {
+        recordProviderFailure("ollama");
         errors.push({ provider: "ollama", error: (err as Error).message });
       }
     }
 
-    const devices = getOnlineDevices();
-    for (const device of devices) {
-      if (device.capabilityScore < 0.3) continue;
-      const endpoint = `http://${device.ip}:${device.port}`;
-      const peerAlive = await isLocalOllamaAlive(endpoint, 3000);
-      if (!peerAlive) continue;
-      try {
-        const result = await executeLocalOllama({
-          model: request.model ?? device.models[0] ?? "llama3.2",
-          prompt: request.prompt,
-          system: request.systemPrompt,
-          temperature: request.temperature,
-          maxTokens: request.maxTokens,
-          endpoint,
-        });
-        return {
-          output: result.output,
-          model: result.model,
-          provider: "ollama",
-          tokensIn: result.tokensIn,
-          tokensOut: result.tokensOut,
-          costUsd: 0,
-          latencyMs: Date.now() - start,
-          unlimited: true,
-        };
-      } catch (err) {
-        errors.push({ provider: `g0dm0d3-peer-${device.id}`, error: (err as Error).message });
+    if (!isCircuitOpen("g0dm0d3")) {
+      const devices = getOnlineDevices();
+      for (const device of devices) {
+        if (device.capabilityScore < 0.3) continue;
+        const endpoint = `http://${device.ip}:${device.port}`;
+        const peerAlive = await isLocalOllamaAlive(endpoint, 3000);
+        if (!peerAlive) continue;
+        try {
+          const result = await executeLocalOllama({
+            model: request.model ?? device.models[0] ?? "llama3.2",
+            prompt: request.prompt,
+            system: request.systemPrompt,
+            temperature: request.temperature,
+            maxTokens: request.maxTokens,
+            endpoint,
+          });
+          recordProviderSuccess("g0dm0d3");
+          return {
+            output: result.output,
+            model: result.model,
+            provider: "ollama",
+            tokensIn: result.tokensIn,
+            tokensOut: result.tokensOut,
+            costUsd: 0,
+            latencyMs: Date.now() - start,
+            unlimited: true,
+          };
+        } catch (err) {
+          errors.push({ provider: `g0dm0d3-peer-${device.id}`, error: (err as Error).message });
+        }
       }
     }
   }
 
+  // Owl Alpha — skip if circuit open or budget exceeded
   const g0Alive = await isG0DM0D3Alive();
-  if (g0Alive && isOwlAlphaEnabled()) {
+  if (g0Alive && isOwlAlphaEnabled() && !isCircuitOpen("g0dm0d3") && !isProviderBudgetExceeded("g0dm0d3")) {
     try {
       const result = await callOwlAlpha(request);
+      recordProviderSuccess("g0dm0d3");
+      trackProviderUsage("g0dm0d3", result.tokensIn + result.tokensOut, 0);
       return { ...result, latencyMs: Date.now() - start, unlimited: true };
     } catch (err) {
+      recordProviderFailure("g0dm0d3");
       errors.push({ provider: "owl-alpha", error: (err as Error).message });
     }
   }
 
-  if (g0Alive) {
+  // G0DM0D3 cloud — skip if circuit open or budget exceeded
+  if (g0Alive && !isCircuitOpen("g0dm0d3") && !isProviderBudgetExceeded("g0dm0d3")) {
     const estimate = buildEstimate({
       systemPrompt: request.systemPrompt ?? "",
       messages: [],
@@ -376,8 +410,11 @@ export async function routeUnlimited(request: ModelRequest): Promise<ModelRespon
     if (budgetDecision.allow) {
       try {
         const result = await callG0DM0D3(request);
+        recordProviderSuccess("g0dm0d3");
+        trackProviderUsage("g0dm0d3", result.tokensIn + result.tokensOut, 0);
         return { ...result, latencyMs: Date.now() - start, unlimited: true };
       } catch (err) {
+        recordProviderFailure("g0dm0d3");
         errors.push({ provider: "g0dm0d3", error: (err as Error).message });
       }
     }
@@ -385,16 +422,20 @@ export async function routeUnlimited(request: ModelRequest): Promise<ModelRespon
 
   for (const optIn of OPT_IN_PROVIDERS) {
     if (!isOptIn(optIn.flag)) continue;
+    if (isCircuitOpen(optIn.id)) continue;
     try {
       const result = await callProvider(optIn.id, request);
+      recordProviderSuccess(optIn.id);
+      trackProviderUsage(optIn.id, result.tokensIn + result.tokensOut, result.costUsd);
       return { ...result, latencyMs: Date.now() - start, unlimited: true };
     } catch (err) {
+      recordProviderFailure(optIn.id);
       errors.push({ provider: optIn.id, error: (err as Error).message });
     }
   }
 
   const nvidiaKey = env("NVIDIA_API_KEY", env("NVIDIA_NIM_API_KEY", ""));
-  if (nvidiaKey) {
+  if (nvidiaKey && !isCircuitOpen("cloud") && !isProviderBudgetExceeded("cloud")) {
     const nvidiaEstimate = buildEstimate({
       systemPrompt: request.systemPrompt ?? "",
       messages: [],
@@ -412,8 +453,11 @@ export async function routeUnlimited(request: ModelRequest): Promise<ModelRespon
     if (nvidiaBudget.allow) {
       try {
         const result = await callCloud(request);
+        recordProviderSuccess("cloud");
+        trackProviderUsage("cloud", result.tokensIn + result.tokensOut, result.costUsd);
         return { ...result, latencyMs: Date.now() - start, unlimited: false };
       } catch (err) {
+        recordProviderFailure("cloud");
         errors.push({ provider: "cloud", error: (err as Error).message });
       }
     }

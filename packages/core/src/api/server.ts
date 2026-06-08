@@ -7,6 +7,7 @@
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { routeUnlimited, checkProviderHealth, type ModelRequest, type ModelResponse } from "../ai-engine/router.js";
+import { getAllProviderUsage, getCircuitState, isForceLocal } from "../ai-engine/capacity.js";
 import { parseBlueprintDiff, generatePlan } from "../blueprint/blueprint.js";
 import { createSession, getSession, executeSession, type CouncilProposal } from "../council/index.js";
 import { installPlugin, uninstallPlugin, healthCheck, healthCheckAll, listPlugins, getPlugin, executeTool, handleACP, listMCPEndpoints, listExternalAgents, registerExternalAgentFromMCP, type PluginManifest } from "../plugin/index.js";
@@ -64,6 +65,24 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
     if (url.pathname === "/health/providers" && method === "GET") {
       const health = await checkProviderHealth();
       return sendJson(res, 200, { success: true, data: health, timestamp: new Date().toISOString() });
+    }
+
+    // AI capacity status — circuit breaker, force-local, provider usage
+    if (url.pathname === "/v1/capacity" && method === "GET") {
+      const usage = getAllProviderUsage();
+      const providers = ["g0dm0d3", "keylessai", "freetheai", "free-ai-router", "puter", "ollama", "cloud"];
+      const circuits = Object.fromEntries(
+        providers.map((p) => [p, getCircuitState(p as import("../ai-engine/router.js").ProviderId)])
+      );
+      return sendJson(res, 200, {
+        success: true,
+        data: {
+          forceLocal: isForceLocal(),
+          providerUsage: usage,
+          circuits,
+        },
+        timestamp: new Date().toISOString(),
+      });
     }
 
     // AI route

@@ -17,6 +17,7 @@ import {
   setNodeExecutor,
   resetNodeExecutor,
   getStoreLocation,
+  resolveVariables,
 } from "../workflow/engine.js";
 import {
   loadWorkflow as persistLoad,
@@ -565,5 +566,162 @@ describe("Workflow — graphify node", () => {
     const nodeRun = run.nodes.find((n) => n.nodeId === "g")!;
     expect(nodeRun.state).toBe("completed");
     expect((nodeRun.output as { count: number }).count).toBe(2);
+  });
+});
+
+describe("Workflow — Template Resolution", () => {
+  it("resolves simple variable", () => {
+    expect(resolveVariables("hello {{name}}", { name: "world" })).toBe("hello world");
+  });
+
+  it("resolves dotted path", () => {
+    const vars = { node1: { output: { body: "content here" } } };
+    expect(resolveVariables("{{node1.output.body}}", vars)).toBe("content here");
+  });
+
+  it("resolves multiple placeholders", () => {
+    const result = resolveVariables("{{a}} and {{b}}", { a: "X", b: "Y" });
+    expect(result).toBe("X and Y");
+  });
+
+  it("stringifies non-string values", () => {
+    expect(resolveVariables("count: {{n}}", { n: 42 })).toBe("count: 42");
+    expect(resolveVariables("data: {{d}}", { d: { key: "val" } })).toBe('data: {"key":"val"}');
+  });
+
+  it("leaves unresolved references as-is", () => {
+    expect(resolveVariables("{{missing}}", {})).toBe("{{missing}}");
+    expect(resolveVariables("{{a.b.c}}", { a: {} })).toBe("{{a.b.c}}");
+  });
+
+  it("handles hyphenated node IDs in paths", () => {
+    const vars = { "fetch-source": { output: { status: 200 } } };
+    expect(resolveVariables("{{fetch-source.output.status}}", vars)).toBe("200");
+  });
+
+  it("injects node output into run.variables after completion", async () => {
+    const captured: Record<string, unknown>[] = [];
+    setNodeExecutor("agent", async (ctx) => {
+      captured.push({ ...ctx.variables });
+      return { provider: "mock", output: "agent-result", model: "mock" };
+    });
+    const wf = await createWorkflow({
+      name: "OutputInjection",
+      nodes: [
+        makeNode({ id: "step1", type: "http" }),
+        makeNode({ id: "step2", type: "agent", config: { agentId: "test", prompt: "go" }, dependsOn: ["step1"] }),
+      ],
+    });
+    const run = await executeWorkflow(wf.id);
+    expect(run.state).toBe("completed");
+    // step2's mock executor should have seen step1's output in variables
+    expect(captured.length).toBe(1);
+    expect(captured[0]!["step1"]).toBeDefined();
+  });
+
+  it("resolves {{variable}} in agent prompt config", async () => {
+    let receivedPrompt = "";
+    setNodeExecutor("agent", async (ctx) => {
+      const node = ctx.workflow.nodes.find((n) => n.id === ctx.nodeRun.nodeId)!;
+      receivedPrompt = node.config.prompt ?? "";
+      return { provider: "mock", output: "ok", model: "mock" };
+    });
+    const wf = await createWorkflow({
+      name: "PromptResolve",
+      nodes: [
+        makeNode({ id: "ag", type: "agent", config: { agentId: "test", prompt: "Summarize: {{content}}" } }),
+      ],
+    });
+    const run = await executeWorkflow(wf.id, { content: "hello world" });
+    expect(run.state).toBe("completed");
+    expect(receivedPrompt).toBe("Summarize: hello world");
+  });
+
+  it("resolves {{nodeId.field}} in agent prompt", async () => {
+    let receivedPrompt = "";
+    setNodeExecutor("http", async () => ({ status: 200, ok: true, body: "fetched data" }));
+    setNodeExecutor("agent", async (ctx) => {
+      const node = ctx.workflow.nodes.find((n) => n.id === ctx.nodeRun.nodeId)!;
+      receivedPrompt = node.config.prompt ?? "";
+      return { provider: "mock", output: "ok", model: "mock" };
+    });
+    const wf = await createWorkflow({
+      name: "NodeOutputResolve",
+      nodes: [
+        makeNode({ id: "fetch", type: "http" }),
+        makeNode({ id: "summarize", type: "agent", config: { agentId: "test", prompt: "Summarize: {{fetch.body}}" }, dependsOn: ["fetch"] }),
+      ],
+    });
+    const run = await executeWorkflow(wf.id);
+    expect(run.state).toBe("completed");
+    expect(receivedPrompt).toBe("Summarize: fetched data");
+  });
+
+  it("resolves {{variable}} in http node url", async () => {
+    let receivedUrl = "";
+    setNodeExecutor("http", async (ctx) => {
+      const node = ctx.workflow.nodes.find((n) => n.id === ctx.nodeRun.nodeId)!;
+      receivedUrl = node.config.url ?? "";
+      return { status: 200, ok: true, body: {} };
+    });
+    const wf = await createWorkflow({
+      name: "UrlResolve",
+      nodes: [
+        makeNode({ id: "h", type: "http", config: { url: "https://api.example.com/{{path}}" } }),
+      ],
+    });
+    const run = await executeWorkflow(wf.id, { path: "users/123" });
+    expect(run.state).toBe("completed");
+    expect(receivedUrl).toBe("https://api.example.com/users/123");
+  });
+
+  it("resolves {{variable}} in graphify entity", async () => {
+    let receivedEntity = "";
+    setNodeExecutor("graphify", async (ctx) => {
+      const node = ctx.workflow.nodes.find((n) => n.id === ctx.nodeRun.nodeId)!;
+      receivedEntity = node.config.graphifyEntity ?? "";
+      return { added: true, triple: {} };
+    });
+    const wf = await createWorkflow({
+      name: "GraphifyResolve",
+      nodes: [
+        makeNode({ id: "g", type: "graphify", config: { graphifyAction: "add", graphifyEntity: "{{topic}}" } }),
+      ],
+    });
+    const run = await executeWorkflow(wf.id, { topic: "TalosOS" });
+    expect(run.state).toBe("completed");
+    expect(receivedEntity).toBe("TalosOS");
+  });
+
+  it("restores original config after execution (persistence integrity)", async () => {
+    setNodeExecutor("agent", async () => ({ provider: "mock", output: "ok", model: "mock" }));
+    const wf = await createWorkflow({
+      name: "ConfigRestore",
+      nodes: [
+        makeNode({ id: "ag", type: "agent", config: { agentId: "test", prompt: "Hello {{name}}" } }),
+      ],
+    });
+    await executeWorkflow(wf.id, { name: "World" });
+    // After execution, the stored workflow should still have the template
+    const stored = getWorkflow(wf.id)!;
+    expect(stored.nodes[0]!.config.prompt).toBe("Hello {{name}}");
+  });
+
+  it("unresolved placeholders pass through literally", async () => {
+    let receivedPrompt = "";
+    setNodeExecutor("agent", async (ctx) => {
+      const node = ctx.workflow.nodes.find((n) => n.id === ctx.nodeRun.nodeId)!;
+      receivedPrompt = node.config.prompt ?? "";
+      return { provider: "mock", output: "ok", model: "mock" };
+    });
+    const wf = await createWorkflow({
+      name: "Unresolved",
+      nodes: [
+        makeNode({ id: "ag", type: "agent", config: { agentId: "test", prompt: "Use {{missing_var}}" } }),
+      ],
+    });
+    const run = await executeWorkflow(wf.id);
+    expect(run.state).toBe("completed");
+    expect(receivedPrompt).toBe("Use {{missing_var}}");
   });
 });

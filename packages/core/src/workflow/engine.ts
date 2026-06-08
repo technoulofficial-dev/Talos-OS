@@ -19,6 +19,86 @@ const workflows = new Map<string, WorkflowDefinition>();
 const runs = new Map<string, WorkflowRun>();
 const runCallbacks = new Map<string, (run: WorkflowRun) => void>();
 
+// ---------------------------------------------------------------------------
+// Template resolution
+// ---------------------------------------------------------------------------
+
+/**
+ * Split a dotted path into segments, escaping literal dots with backslash.
+ * "fetch-source.output.body" → ["fetch-source", "output", "body"]
+ * "a\.b.c" → ["a.b", "c"]
+ */
+function splitPath(path: string): string[] {
+  const segments: string[] = [];
+  let current = "";
+  for (let i = 0; i < path.length; i++) {
+    if (path[i] === "\\" && i + 1 < path.length && path[i + 1] === ".") {
+      current += ".";
+      i++;
+    } else if (path[i] === ".") {
+      segments.push(current);
+      current = "";
+    } else {
+      current += path[i];
+    }
+  }
+  segments.push(current);
+  return segments;
+}
+
+/**
+ * Resolve {{variable}} and {{dotted.path}} references in a string.
+ * Values are coerced to strings (objects → JSON.stringify).
+ * Unresolved references are left as-is.
+ */
+export function resolveVariables(value: string, variables: Record<string, unknown>): string {
+  return value.replace(/\{\{([^}]+)\}\}/g, (_match, rawPath: string) => {
+    const parts = splitPath(rawPath.trim());
+    let current: unknown = variables;
+    for (const part of parts) {
+      if (current === null || current === undefined || typeof current !== "object") {
+        return _match; // unresolved
+      }
+      if (part in (current as Record<string, unknown>)) {
+        current = (current as Record<string, unknown>)[part];
+      } else {
+        return _match; // unresolved
+      }
+    }
+    return typeof current === "string" ? current : JSON.stringify(current);
+  });
+}
+
+/**
+ * Resolve {{...}} placeholders in all string config fields for a node.
+ * Non-string fields (headers, args, body-as-object) are left untouched.
+ */
+function resolveConfig(
+  config: Record<string, unknown>,
+  variables: Record<string, unknown>,
+): void {
+  const stringFields = [
+    "prompt", "url", "body", "graphifyEntity", "graphifyPredicate",
+    "expression", "code", "agentId", "iterSource", "subWorkflowId",
+    "language", "method",
+  ];
+  for (const field of stringFields) {
+    const val = config[field];
+    if (typeof val === "string" && val.includes("{{")) {
+      config[field] = resolveVariables(val, variables);
+    }
+  }
+  // Resolve string values in headers map
+  const headers = config["headers"];
+  if (headers && typeof headers === "object" && !Array.isArray(headers)) {
+    for (const [k, v] of Object.entries(headers as Record<string, unknown>)) {
+      if (typeof v === "string" && v.includes("{{")) {
+        (headers as Record<string, unknown>)[k] = resolveVariables(v, variables);
+      }
+    }
+  }
+}
+
 function topoOrder(nodes: WorkflowNode[]): WorkflowNode[] {
   const inDeg = new Map<string, number>();
   const adj = new Map<string, string[]>();
@@ -391,6 +471,14 @@ async function runNode(workflow: WorkflowDefinition, run: WorkflowRun, node: Wor
   const nodeRun = run.nodes.find((n) => n.nodeId === node.id)!;
   const ctx: NodeExecutionContext = { workflow, run, nodeRun, variables: run.variables };
 
+  // Resolve {{...}} placeholders in string config fields before execution
+  const configCopy = { ...node.config } as Record<string, unknown>;
+  resolveConfig(configCopy, run.variables);
+  // Patch the workflow node's config in-place for this execution
+  // (executors read from ctx.workflow.nodes, so we temporarily swap)
+  const originalConfig = node.config;
+  (node as { config: typeof node.config }).config = configCopy as typeof node.config;
+
   nodeRun.state = "running";
   nodeRun.startedAt = new Date();
   nodeRun.attempts++;
@@ -401,6 +489,7 @@ async function runNode(workflow: WorkflowDefinition, run: WorkflowRun, node: Wor
   if (!executor) {
     nodeRun.state = "failed";
     nodeRun.error = `Unknown node type: ${node.type}`;
+    (node as { config: typeof node.config }).config = originalConfig;
     throw new Error(nodeRun.error);
   }
 
@@ -418,6 +507,11 @@ async function runNode(workflow: WorkflowDefinition, run: WorkflowRun, node: Wor
 
   try {
     await attempt();
+    // Inject node output into run.variables so downstream nodes can reference it
+    // e.g. {{fetch-source.output.body}} resolves via variables["fetch-source"]["output"]["body"]
+    if (nodeRun.output !== undefined) {
+      run.variables[node.id] = nodeRun.output;
+    }
   } catch (err) {
     if (nodeRun.attempts <= node.maxRetries) {
       const remaining = node.maxRetries - nodeRun.attempts + 1;
@@ -427,6 +521,10 @@ async function runNode(workflow: WorkflowDefinition, run: WorkflowRun, node: Wor
           nodeRun.attempts++;
           await attempt();
           err = null;
+          // Inject output after successful retry
+          if (nodeRun.output !== undefined) {
+            run.variables[node.id] = nodeRun.output;
+          }
           break;
         } catch (err2) {
           err = err2;
@@ -444,6 +542,9 @@ async function runNode(workflow: WorkflowDefinition, run: WorkflowRun, node: Wor
       nodeRun.durationMs = nodeRun.completedAt.getTime() - (nodeRun.startedAt?.getTime() ?? Date.now());
       throw err;
     }
+  } finally {
+    // Restore original config (with {{...}} intact) for persistence
+    (node as { config: typeof node.config }).config = originalConfig;
   }
 }
 

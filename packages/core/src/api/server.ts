@@ -14,6 +14,7 @@ import type { ACPRequest } from "../types/plugin.js";
 import { addTriple, queryTriples, getStats, deleteTriple, clearGraph, searchByEntity, searchByPredicate, findPath } from "../graphify/index.js";
 import { createWorkflow, executeWorkflow, getRun, listAllWorkflows, listAllRuns, validateWorkflow, getStoreLocation } from "../workflow/index.js";
 import { harvestSkill, type SkillSource } from "../harvester/index.js";
+import { requirePermission, extractAgentId } from "../middleware/permissions.js";
 import type { z } from "zod";
 import { WorkflowNodeSchema } from "../workflow/types.js";
 
@@ -78,7 +79,10 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
 
     // Agent execution
     if (url.pathname.startsWith("/v1/agents/") && method === "POST") {
-      const agentId = url.pathname.split("/")[3];
+      const agentId = url.pathname.split("/")[3]!;
+      const callerAgentId = extractAgentId(req, url);
+      const perm = await requirePermission(callerAgentId, "execute_tasks");
+      if (perm.denied) return sendJson(res, perm.status!, { success: false, error: perm.body ? JSON.parse(perm.body).error : "Forbidden", timestamp: new Date().toISOString() });
       const body = await readBody<RouteRequest>(req);
       const response = await executeAgent(agentId!, body);
       return sendJson(res, 200, { success: true, data: response, timestamp: new Date().toISOString() });
@@ -175,6 +179,9 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
     }
 
     if (url.pathname === "/v1/agents/external/register" && method === "POST") {
+      const callerAgentId = extractAgentId(req, url);
+      const perm = await requirePermission(callerAgentId, "create_agents");
+      if (perm.denied) return sendJson(res, perm.status!, { success: false, error: perm.body ? JSON.parse(perm.body).error : "Forbidden", timestamp: new Date().toISOString() });
       const body = await readBody<{ name: string; mcpUrl: string; tools?: Array<{ name: string; description?: string; inputSchema?: Record<string, unknown> }>; capabilities?: string[] }>(req);
       if (!body.name || !body.mcpUrl) return sendJson(res, 400, { success: false, error: "name and mcpUrl required", timestamp: new Date().toISOString() });
       const tools = (body.tools ?? []).map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema ?? {} }));
@@ -184,6 +191,9 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
 
     // Graphify: add triple
     if (url.pathname === "/v1/graphify/triple" && method === "POST") {
+      const callerAgentId = extractAgentId(req, url);
+      const perm = await requirePermission(callerAgentId, "write_own_memory");
+      if (perm.denied) return sendJson(res, perm.status!, { success: false, error: perm.body ? JSON.parse(perm.body).error : "Forbidden", timestamp: new Date().toISOString() });
       const body = await readBody<{ subject: string; predicate: string; object: string; context?: string; weight?: number }>(req);
       if (!body.subject || !body.predicate || !body.object) return sendJson(res, 400, { success: false, error: "subject, predicate, and object required", timestamp: new Date().toISOString() });
       const triple = await addTriple(body.subject, body.predicate, body.object, body.context, body.weight);
@@ -254,6 +264,9 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
 
     // Harvester: ingest skill from external source
     if (url.pathname === "/v1/harvester/ingest" && method === "POST") {
+      const callerAgentId = extractAgentId(req, url);
+      const perm = await requirePermission(callerAgentId, "access_network");
+      if (perm.denied) return sendJson(res, perm.status!, { success: false, error: perm.body ? JSON.parse(perm.body).error : "Forbidden", timestamp: new Date().toISOString() });
       const body = await readBody<{ source: SkillSource; skipDb?: boolean }>(req);
       if (!body.source?.identifier || !body.source?.license) {
         return sendJson(res, 400, { success: false, error: "source.identifier and source.license required", timestamp: new Date().toISOString() });
@@ -268,6 +281,9 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
 
     // Workflow: create
     if (url.pathname === "/v1/workflow" && method === "POST") {
+      const callerAgentId = extractAgentId(req, url);
+      const perm = await requirePermission(callerAgentId, "modify_config");
+      if (perm.denied) return sendJson(res, perm.status!, { success: false, error: perm.body ? JSON.parse(perm.body).error : "Forbidden", timestamp: new Date().toISOString() });
       const body = await readBody<{ name: string; description?: string; nodes: Array<z.input<typeof WorkflowNodeSchema>>; variables?: Record<string, unknown> }>(req);
       if (!body.name || !body.nodes || body.nodes.length === 0) {
         return sendJson(res, 400, { success: false, error: "name and non-empty nodes required", timestamp: new Date().toISOString() });
@@ -299,6 +315,9 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
     // Workflow: run (POST /v1/workflow/:id/run)
     if (url.pathname.match(/^\/v1\/workflow\/[^/]+\/run$/) && method === "POST") {
       const id = url.pathname.split("/")[3]!;
+      const callerAgentId = extractAgentId(req, url);
+      const perm = await requirePermission(callerAgentId, "execute_tasks");
+      if (perm.denied) return sendJson(res, perm.status!, { success: false, error: perm.body ? JSON.parse(perm.body).error : "Forbidden", timestamp: new Date().toISOString() });
       const body = await readBody<{ variables?: Record<string, unknown>; triggeredBy?: string }>(req);
       try {
         const run = await executeWorkflow(id, body.variables ?? {}, body.triggeredBy ?? "api");

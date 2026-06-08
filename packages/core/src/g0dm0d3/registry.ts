@@ -1,7 +1,11 @@
 /**
  * SYS-G0DM0D3 G4: DeviceRegistry
- * In-memory registry of discovered G0DM0D3 devices.
- * Phase 2+: backed by talos_devices table.
+ * Dual-mode device registry:
+ * - In-memory Map (default, TALOS_DEVICE_DB_ENABLED unset or "false")
+ * - Supabase via @talos/db (when TALOS_DEVICE_DB_ENABLED=true)
+ *
+ * The dual-mode strategy keeps existing tests passing unchanged
+ * while letting production deploy with real database persistence.
  */
 
 import { scoreCapability, type DeviceCapabilityInput } from "./score.js";
@@ -22,7 +26,31 @@ export interface DeviceEntry {
   discoveredAt: Date;
 }
 
+// ---------------------------------------------------------------------------
+// Dual-mode helpers
+// ---------------------------------------------------------------------------
+
+function dbEnabled(): boolean {
+  return process.env["TALOS_DEVICE_DB_ENABLED"] === "true";
+}
+
+let dbModulePromise: Promise<typeof import("@talos/db")> | null = null;
+async function loadDb() {
+  if (!dbModulePromise) {
+    dbModulePromise = import("@talos/db");
+  }
+  return dbModulePromise;
+}
+
+// ---------------------------------------------------------------------------
+// In-memory store (default mode)
+// ---------------------------------------------------------------------------
+
 const devices: Map<string, DeviceEntry> = new Map();
+
+// ---------------------------------------------------------------------------
+// Public API — dual-mode
+// ---------------------------------------------------------------------------
 
 /** Register or update a discovered device */
 export async function registerDevice(probe: ProbeResult): Promise<DeviceEntry> {
@@ -52,6 +80,24 @@ export async function registerDevice(probe: ProbeResult): Promise<DeviceEntry> {
     discoveredAt: existing?.discoveredAt ?? new Date(),
   };
 
+  if (dbEnabled()) {
+    try {
+      const db = await loadDb();
+      await db.registerDevice({
+        hostname: entry.hostname,
+        localEndpointUrl: `http://${entry.ip}:${entry.port}`,
+        hasLocalAi: true,
+        status: entry.status,
+        capabilityScore: entry.capabilityScore,
+        modelsAvailable: entry.models,
+        vramEstimateGb: entry.totalVramGb,
+        lastHeartbeat: entry.lastHeartbeat.toISOString(),
+      });
+    } catch {
+      // DB write failed; continue with in-memory
+    }
+  }
+
   devices.set(id, entry);
   return entry;
 }
@@ -69,15 +115,32 @@ export function getDevice(id: string): DeviceEntry | undefined {
 }
 
 /** Mark a device as offline */
-export function markOffline(id: string): void {
+export async function markOffline(id: string): Promise<void> {
   const device = devices.get(id);
   if (device) {
     device.status = "offline";
+    if (dbEnabled()) {
+      try {
+        const db = await loadDb();
+        await db.updateDeviceStatus(device.hostname, "offline");
+      } catch {
+        // DB write failed; continue with in-memory
+      }
+    }
   }
 }
 
 /** Remove a device (decommission) */
-export function removeDevice(id: string): boolean {
+export async function removeDevice(id: string): Promise<boolean> {
+  const device = devices.get(id);
+  if (device && dbEnabled()) {
+    try {
+      const db = await loadDb();
+      await db.removeDevice(device.hostname);
+    } catch {
+      // DB write failed; continue with in-memory
+    }
+  }
   return devices.delete(id);
 }
 

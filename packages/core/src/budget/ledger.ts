@@ -8,12 +8,35 @@ import { getCurrentMonthPeriod, getCurrentHourPeriod } from "./state.js";
 
 /**
  * SYS-BUDGET B2: SpendLedger
- * DB-backed ledger that tracks every cloud API call cost.
- * In-memory store for Phase 1; swaps to Supabase for Phase 2+.
+ * Dual-mode ledger that tracks every cloud API call cost:
+ * - In-memory array (default, TALOS_SPEND_DB_ENABLED unset or "false")
+ * - Supabase via @talos/db (when TALOS_SPEND_DB_ENABLED=true)
+ *
+ * The dual-mode strategy keeps existing budget tests passing unchanged
+ * while letting production deploy with real database persistence.
  */
 
-/** In-memory ledger (Phase 1). Replace with Supabase client for Phase 2+. */
+function dbEnabled(): boolean {
+  return process.env["TALOS_SPEND_DB_ENABLED"] === "true";
+}
+
+let dbModulePromise: Promise<typeof import("@talos/db")> | null = null;
+async function loadDb() {
+  if (!dbModulePromise) {
+    dbModulePromise = import("@talos/db");
+  }
+  return dbModulePromise;
+}
+
+// ---------------------------------------------------------------------------
+// In-memory store (default mode)
+// ---------------------------------------------------------------------------
+
 const records: SpendRecord[] = [];
+
+// ---------------------------------------------------------------------------
+// Public API — dual-mode
+// ---------------------------------------------------------------------------
 
 export async function recordSpend(params: {
   agentId: string;
@@ -37,6 +60,25 @@ export async function recordSpend(params: {
     timestamp: params.timestamp,
     periodId,
   });
+
+  if (dbEnabled()) {
+    try {
+      const db = await loadDb();
+      await db.recordSpend({
+        agentId: record.agentId,
+        providerId: record.providerId,
+        tokensIn: record.tokensIn,
+        tokensOut: record.tokensOut,
+        totalTokens: record.totalTokens,
+        costUsd: record.costUsd,
+        taskId: record.taskId,
+        periodId: record.periodId,
+      });
+    } catch {
+      // DB write failed; continue with in-memory
+    }
+  }
+
   records.push(record);
   return record;
 }

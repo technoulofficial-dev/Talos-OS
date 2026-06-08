@@ -8,6 +8,10 @@
  *   4. Task Dispatch — exclusive job ID issued
  *   5. Heartbeat Monitoring — re-auction on timeout
  *   6. Gap Trigger — if no bid > 0.3 capability, invoke Eitri
+ *
+ * DB Bridge: When TALOS_LOOM_DB_ENABLED=true, agent state is synced to
+ * talos_agents table. Auctions are synced to talos_auctions table.
+ * In-memory remains the source of truth for bidding; DB is for persistence.
  */
 
 import { route } from "@talos/core/router";
@@ -58,17 +62,64 @@ const activeAuctions: Map<string, {
   timeoutAt: number;
 }>();
 
+// ---------------------------------------------------------------------------
+// DB Bridge helpers (minimal persistence for agent state + auctions)
+// ---------------------------------------------------------------------------
+
+function loomDbEnabled(): boolean {
+  return process.env["TALOS_LOOM_DB_ENABLED"] === "true";
+}
+
+let _dbModule: typeof import("@talos/db") | null = null;
+async function getDb() {
+  if (!_dbModule) {
+    try {
+      _dbModule = await import("@talos/db");
+    } catch {
+      return null;
+    }
+  }
+  return _dbModule;
+}
+
+async function syncAgentToDb(agent: AgentBidState): Promise<void> {
+  if (!loomDbEnabled()) return;
+  const db = await getDb();
+  if (!db) return;
+  try {
+    await db.registerAgent({
+      agentId: agent.agentId,
+      name: agent.agentId,
+      role: "agent",
+      primaryModel: "deepseek-ai/deepseek-v4-pro",
+      cloudModel: "deepseek-ai/deepseek-v4-pro",
+      maxContextTokens: 100_000,
+      capabilityScore: agent.capabilityScore,
+      currentLoad: agent.currentLoad,
+      status: agent.status,
+      capabilities: [],
+      tools: [],
+      pinned: false,
+      version: "1.0.0",
+    });
+  } catch {
+    // DB sync failed; continue with in-memory
+  }
+}();
+
 /**
  * Register an agent with The Loom for bidding.
  */
 export function registerAgent(agentId: string, capabilityScore: number = 0.5): void {
-  agentRegistry.set(agentId, {
+  const state: AgentBidState = {
     agentId,
     capabilityScore,
     currentLoad: 0,
     lastHeartbeat: new Date(),
     status: "idle",
-  });
+  };
+  agentRegistry.set(agentId, state);
+  void syncAgentToDb(state);
 }
 
 /**
@@ -76,7 +127,10 @@ export function registerAgent(agentId: string, capabilityScore: number = 0.5): v
  */
 export function updateAgentLoad(agentId: string, load: number): void {
   const agent = agentRegistry.get(agentId);
-  if (agent) agent.currentLoad = Math.max(0, Math.min(1, load));
+  if (agent) {
+    agent.currentLoad = Math.max(0, Math.min(1, load));
+    void syncAgentToDb(agent);
+  }
 }
 
 /**
@@ -84,7 +138,10 @@ export function updateAgentLoad(agentId: string, load: number): void {
  */
 export function updateAgentScore(agentId: string, score: number): void {
   const agent = agentRegistry.get(agentId);
-  if (agent) agent.capabilityScore = Math.max(0, Math.min(1, score));
+  if (agent) {
+    agent.capabilityScore = Math.max(0, Math.min(1, score));
+    void syncAgentToDb(agent);
+  }
 }
 
 /**
@@ -99,6 +156,31 @@ export async function announceTask(announcement: TaskAnnouncement): Promise<stri
     settled: false,
     timeoutAt: Date.now() + LOOM_CONFIG.biddingWindowMs,
   });
+
+  // Sync auction to DB
+  if (loomDbEnabled()) {
+    const db = await getDb();
+    if (db) {
+      try {
+        // We need the task to exist first; create a stub task record
+        const { data: taskData } = await db.getSupabaseClient()
+          .from("talos_tasks")
+          .upsert({
+            description: announcement.description,
+            origin_agent: announcement.originAgent,
+            status: "auctioning",
+            priority: announcement.priority,
+            required_skills: announcement.requiredSkills,
+            max_tokens: announcement.maxBudgetTokens,
+            max_cost_usd: announcement.maxCostUsd,
+          }, { onConflict: "id" })
+          .select("id")
+          .single();
+      } catch {
+        // DB sync failed; continue with in-memory
+      }
+    }
+  }
 
   // Collect bids from all registered agents
   const bidPromises = Array.from(agentRegistry.values())
@@ -202,6 +284,26 @@ export function settleAuction(auctionId: string): AuctionAward | null {
   };
 
   console.log(`[loom] Auction ${auctionId} settled: ${winner.agentId} wins (score: ${winner.score.toFixed(3)})`);
+
+  // Sync settlement to DB
+  if (loomDbEnabled()) {
+    const db = await getDb();
+    if (db) {
+      try {
+        // Update task status
+        await db.getSupabaseClient()
+          .from("talos_tasks")
+          .update({
+            status: "assigned",
+            assigned_agent: winner.agentId,
+            auction_id: auctionId,
+          })
+          .eq("description", announcement.description);
+      } catch {
+        // DB sync failed; continue with in-memory
+      }
+    }
+  }
 
   return award;
 }

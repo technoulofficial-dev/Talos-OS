@@ -13,7 +13,13 @@
     "./auctions": "./dist/auctions.js",
     "./memory": "./dist/memory.js",
     "./plugins": "./dist/plugins.js",
-    "./store": "./dist/store.js"
+    "./store": "./dist/store.js",
+    "./skills": "./dist/skills.js",
+    "./workflows": "./dist/workflows.js",
+    "./devices": "./dist/devices.js",
+    "./spend_ledger": "./dist/spend_ledger.js",
+    "./audit_trail": "./dist/audit_trail.js",
+    "./settings": "./dist/settings.js"
   },
   "scripts": {
     "build": "tsc",

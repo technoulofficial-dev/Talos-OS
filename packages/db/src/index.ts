@@ -19,3 +19,7 @@ export * from "./plugins.js";
 export * from "./store.js";
 export * from "./skills.js";
 export * from "./workflows.js";
+export * from "./devices.js";
+export * from "./spend_ledger.js";
+export * from "./audit_trail.js";
+export * from "./settings.js";

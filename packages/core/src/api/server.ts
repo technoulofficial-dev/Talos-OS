@@ -6,7 +6,7 @@
  */
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { routeUnlimited, checkProviderHealth, type ModelRequest, type ModelResponse } from "../ai-engine/router.js";
+import { routeUnlimited, checkProviderHealth, isKillSwitchActive, type ModelRequest, type ModelResponse } from "../ai-engine/router.js";
 import { getAllProviderUsage, getCircuitState, isForceLocal } from "../ai-engine/capacity.js";
 import { parseBlueprintDiff, generatePlan } from "../blueprint/blueprint.js";
 import { createSession, getSession, executeSession, type CouncilProposal } from "../council/index.js";
@@ -78,6 +78,7 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
         success: true,
         data: {
           forceLocal: isForceLocal(),
+          killSwitch: isKillSwitchActive(),
           providerUsage: usage,
           circuits,
         },

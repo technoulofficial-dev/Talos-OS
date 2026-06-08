@@ -12,6 +12,7 @@ import {
   trackProviderUsage,
   isProviderBudgetExceeded,
 } from "./capacity.js";
+import { recordTrace } from "../router/trace.js";
 
 export type ProviderId =
   | "g0dm0d3"
@@ -51,6 +52,14 @@ export interface ProviderHealth {
   lastChecked: number;
   errorRate: number;
   unlimited: boolean;
+}
+
+/**
+ * Emergency kill switch: when TALOS_KILL_SWITCH=true, ALL cloud API calls are blocked.
+ * Only local Ollama is allowed. Returns a budget-denied decision.
+ */
+export function isKillSwitchActive(): boolean {
+  return process.env["TALOS_KILL_SWITCH"] === "true";
 }
 
 function env(key: string, fallback: string): string {
@@ -315,6 +324,22 @@ export async function routeUnlimited(request: ModelRequest): Promise<ModelRespon
   const errors: Array<{ provider: string; error: string }> = [];
   const ollamaHost = env("OLLAMA_HOST", "http://127.0.0.1:11434");
 
+  // Emergency kill switch: block all cloud calls, local Ollama only
+  if (isKillSwitchActive()) {
+    const alive = await isLocalOllamaAlive(ollamaHost, 3000);
+    if (alive) {
+      try {
+        const result = await callOllama(request);
+        const latencyMs = Date.now() - start;
+        await recordTrace({ taskId: "", agentId: request.agentId, decision: "kill-switch-local", model: result.model, latencyMs, costUsd: 0, endpoint: ollamaHost });
+        return { ...result, latencyMs, unlimited: true };
+      } catch (err) {
+        throw new Error(`Kill switch active: Ollama failed — ${(err as Error).message}`);
+      }
+    }
+    throw new Error("Kill switch active: Ollama not reachable and all cloud providers disabled");
+  }
+
   // Force-local mode: route everything to Ollama, skip all cloud providers
   if (isForceLocal()) {
     const alive = await isLocalOllamaAlive(ollamaHost, 3000);
@@ -322,7 +347,9 @@ export async function routeUnlimited(request: ModelRequest): Promise<ModelRespon
       try {
         const result = await callOllama(request);
         recordProviderSuccess("ollama");
-        return { ...result, latencyMs: Date.now() - start, unlimited: true };
+        const latencyMs = Date.now() - start;
+        await recordTrace({ taskId: "", agentId: request.agentId, decision: "force-local", model: result.model, latencyMs, costUsd: 0, endpoint: ollamaHost });
+        return { ...result, latencyMs, unlimited: true };
       } catch (err) {
         recordProviderFailure("ollama");
         throw new Error(`Force-local mode: Ollama failed — ${(err as Error).message}`);
@@ -337,7 +364,9 @@ export async function routeUnlimited(request: ModelRequest): Promise<ModelRespon
       try {
         const result = await callOllama(request);
         recordProviderSuccess("ollama");
-        return { ...result, latencyMs: Date.now() - start, unlimited: true };
+        const latencyMs = Date.now() - start;
+        await recordTrace({ taskId: "", agentId: request.agentId, decision: "local-ollama", model: result.model, latencyMs, costUsd: 0, endpoint: ollamaHost });
+        return { ...result, latencyMs, unlimited: true };
       } catch (err) {
         recordProviderFailure("ollama");
         errors.push({ provider: "ollama", error: (err as Error).message });
@@ -385,7 +414,9 @@ export async function routeUnlimited(request: ModelRequest): Promise<ModelRespon
       const result = await callOwlAlpha(request);
       recordProviderSuccess("g0dm0d3");
       trackProviderUsage("g0dm0d3", result.tokensIn + result.tokensOut, 0);
-      return { ...result, latencyMs: Date.now() - start, unlimited: true };
+      const latencyMs = Date.now() - start;
+      await recordTrace({ taskId: "", agentId: request.agentId, decision: "owl-alpha", model: result.model, latencyMs, costUsd: 0 });
+      return { ...result, latencyMs, unlimited: true };
     } catch (err) {
       recordProviderFailure("g0dm0d3");
       errors.push({ provider: "owl-alpha", error: (err as Error).message });
@@ -412,7 +443,9 @@ export async function routeUnlimited(request: ModelRequest): Promise<ModelRespon
         const result = await callG0DM0D3(request);
         recordProviderSuccess("g0dm0d3");
         trackProviderUsage("g0dm0d3", result.tokensIn + result.tokensOut, 0);
-        return { ...result, latencyMs: Date.now() - start, unlimited: true };
+        const latencyMs = Date.now() - start;
+        await recordTrace({ taskId: "", agentId: request.agentId, decision: "g0dm0d3-cloud", model: result.model, latencyMs, costUsd: 0 });
+        return { ...result, latencyMs, unlimited: true };
       } catch (err) {
         recordProviderFailure("g0dm0d3");
         errors.push({ provider: "g0dm0d3", error: (err as Error).message });

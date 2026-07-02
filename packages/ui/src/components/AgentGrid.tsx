@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { AgentCard, type AgentStatus, type Guild } from "./AgentCard";
+import { fetchJson } from "@/lib/api";
 
 interface AgentData {
   agentId: string;
@@ -14,7 +15,15 @@ interface AgentData {
   model?: string;
 }
 
-const DEMO_AGENTS: AgentData[] = [
+const AGENT_GUILD: Record<string, Guild> = {
+  loom: "crown", odin: "crown", mimir: "crown", bragi: "crown", system: "crown",
+  brokkr: "forge", opencode: "forge",
+  muninn: "vault", nornir: "vault",
+  huginn: "sanctum", sage: "sanctum",
+  eitri: "foundry",
+};
+
+const FALLBACK_AGENTS: AgentData[] = [
   { agentId: "loom", name: "The Loom", guild: "crown", status: "idle", capabilityScore: 0.98, currentLoad: 0.1, role: "Reconfiguration Engine" },
   { agentId: "odin", name: "Odin", guild: "crown", status: "executing", capabilityScore: 0.95, currentLoad: 0.4, role: "Chief Coordinator", model: "openrouter/owl-alpha:free" },
   { agentId: "mimir", name: "Mimir", guild: "crown", status: "idle", capabilityScore: 0.92, currentLoad: 0.2, role: "Knowledge Manager" },
@@ -29,12 +38,48 @@ const DEMO_AGENTS: AgentData[] = [
   { agentId: "system", name: "System", guild: "crown", status: "executing", capabilityScore: 0.95, currentLoad: 0.15, role: "System Agent" },
 ];
 
+interface ApiAgent {
+  agentId: string;
+  name: string;
+  status: AgentStatus;
+  capabilityScore: number;
+  currentLoad: number;
+  role: string;
+  primaryModel?: string;
+}
+
+function mapAgent(a: ApiAgent): AgentData {
+  return {
+    agentId: a.agentId,
+    name: a.name,
+    guild: AGENT_GUILD[a.agentId] ?? "crown",
+    status: a.status,
+    capabilityScore: a.capabilityScore,
+    currentLoad: a.currentLoad,
+    role: a.role,
+    model: a.primaryModel,
+  };
+}
+
 interface AgentGridProps {
   detailed?: boolean;
 }
 
 export function AgentGrid({ detailed = false }: AgentGridProps) {
-  const [agents, setAgents] = useState<AgentData[]>(DEMO_AGENTS);
+  const [agents, setAgents] = useState<AgentData[]>(FALLBACK_AGENTS);
+
+  const fetchAgents = useCallback(async () => {
+    try {
+      const data = await fetchJson<ApiAgent[]>("/v1/agents");
+      setAgents(data.map(mapAgent));
+    } catch {
+      // Use fallback
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAgents();
+  }, [fetchAgents]);
 
   useEffect(() => {
     const interval = setInterval(() => {

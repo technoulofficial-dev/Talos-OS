@@ -60,7 +60,7 @@ const activeAuctions: Map<string, {
   bids: Bid[];
   settled: boolean;
   timeoutAt: number;
-}[]> = new Map();
+}> = new Map();
 
 /**
  * Register an agent with The Loom for bidding.
@@ -120,8 +120,8 @@ export async function announceTask(announcement: TaskAnnouncement): Promise<stri
       estimatedCost: estimateTaskCost(announcement),
     }));
 
-  // Fire all bid submissions concurrently
-  void Promise.allSettled(bidPromises);
+  // Fire all bid submissions concurrently (await bids to complete)
+  await Promise.allSettled(bidPromises);
 
   return auctionId;
 }
@@ -146,7 +146,7 @@ export function submitBid(bid: {
     submittedAt: new Date(),
   };
 
-  for (const auction of activeAuctions.values()) {
+  for (const [id, auction] of activeAuctions.entries()) {
     if (auction.announcement.taskId === bid.taskId && !auction.settled) {
       auction.bids.push(fullBid);
     }

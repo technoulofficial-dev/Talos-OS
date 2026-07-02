@@ -2,8 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { RefreshCw, GitBranch, AlertTriangle, ChevronRight, ChevronDown, CheckCircle2, CircleDashed, XCircle, Play } from "lucide-react";
-
-const API_BASE = "http://localhost:8642";
+import { fetchJson } from "@/lib/api";
 
 type RiskLevel = "low" | "medium" | "high" | "critical";
 
@@ -77,10 +76,8 @@ export function BlueprintView() {
     setError(null);
     setPlan(null);
     try {
-      const res = await fetch(`${API_BASE}/v1/blueprint/diff`, { method: "POST" });
-      if (!res.ok) throw new Error(`diff: ${res.status}`);
-      const json = (await res.json()) as { data: DiffEntry[] };
-      setDiffs(json.data ?? []);
+      const data = await fetchJson<DiffEntry[]>("/v1/blueprint/diff", { method: "POST" });
+      setDiffs(data ?? []);
     } catch (err) {
       setError((err as Error).message);
       setDiffs([]);
@@ -97,14 +94,11 @@ export function BlueprintView() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/v1/blueprint/plan`, {
+      const data = await fetchJson<ReconfigurationPlan>("/v1/blueprint/plan", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ source, target }),
       });
-      if (!res.ok) throw new Error(`plan: ${res.status}`);
-      const json = (await res.json()) as { data: ReconfigurationPlan };
-      setPlan(json.data);
+      setPlan(data);
     } catch (err) {
       setError((err as Error).message);
     } finally {

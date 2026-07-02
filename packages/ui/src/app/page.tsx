@@ -10,53 +10,34 @@ import { Sidebar } from "@/components/Sidebar";
 import { MemoryView } from "@/components/MemoryView";
 import { BlueprintView } from "@/components/BlueprintView";
 import { ChatView } from "@/components/ChatView";
+import { fetchJson } from "@/lib/api";
 import type { Node, Edge } from "reactflow";
 
 type View = "dashboard" | "agents" | "tasks" | "memory" | "blueprint" | "workflows" | "chat";
 
-const API_BASE = "http://localhost:8642";
-
 async function saveWorkflow(name: string, nodes: Node[], edges: Edge[]): Promise<string> {
   const payload = buildSavePayload(name, nodes, edges);
-  const res = await fetch(`${API_BASE}/v1/workflow`, {
+  return fetchJson<{ id: string }>("/v1/workflow", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Save failed (${res.status}): ${body}`);
-  }
-  const json = await res.json();
-  return json.data.id as string;
+  }).then((d) => d.id);
 }
 
 async function runWorkflow(workflowId: string): Promise<string> {
-  const res = await fetch(`${API_BASE}/v1/workflow/${workflowId}/run`, {
+  return fetchJson<{ runId: string }>(`/v1/workflow/${workflowId}/run`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ triggeredBy: "ui" }),
-  });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Run failed (${res.status}): ${body}`);
-  }
-  const json = await res.json();
-  return json.data.runId as string;
+  }).then((d) => d.runId);
 }
 
 async function pollRunStatus(runId: string, onState: (states: Record<string, string>) => void, signal: AbortSignal) {
   while (!signal.aborted) {
     try {
-      const res = await fetch(`${API_BASE}/v1/workflow/run/${runId}`, { signal });
-      if (res.ok) {
-        const json = await res.json();
-        const run = json.data;
-        if (run.nodeStates) {
-          onState(run.nodeStates);
-        }
-        if (run.state === "completed" || run.state === "failed") break;
-      }
+      const run = await fetchJson<{ state: string; nodeStates?: Record<string, string> }>(
+        `/v1/workflow/run/${runId}`, { signal }
+      );
+      if (run.nodeStates) onState(run.nodeStates);
+      if (run.state === "completed" || run.state === "failed") break;
     } catch {
       if (signal.aborted) break;
     }

@@ -1,6 +1,6 @@
 "use client";
 
-import { Brain, Zap, Shield, Database, Workflow, Cpu, Eye, BookOpen, MessageSquare, Terminal, Settings, Search } from "lucide-react";
+import { Brain, Shield, Database, Workflow, Cpu, Eye, BookOpen, MessageSquare, Terminal, Settings, Search } from "lucide-react";
 
 export type AgentStatus = "idle" | "bidding" | "executing" | "offline";
 export type Guild = "crown" | "forge" | "sanctum" | "vault" | "foundry";

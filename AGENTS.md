@@ -444,3 +444,26 @@ To maximize output quality, load skills proactively based on task type:
 - Workflow engine: implement `{{variable}}` template resolution (interpolate node outputs)
 - Harvester Phase 3 (uses talos_skills table)
 - React 19 + Next 15 minor verifications
+
+### 2026-07-02 — Phase 1-6 Backend Bug Fixes (Loom, Blueprint, Eitri, Phoenix, Agent Manager)
+
+**What was done:**
+- **Phase 1 (Loom Tests)**: Fixed import path (`../../../../talos-agents/loom/index.ts`), variable typo (`aauctionId` → `auctionId`), and regex double-escape (`\\d` → `\d`) — all 3 Loom tests pass
+- **Phase 2 (Loom Core)**: Fixed 10 bugs — `activeAuctions` type from `[]` to single object, `void Promise.allSettled` → `await`, auction iteration uses `.entries()` instead of `.values()`, unused `route` import removed
+- **Phase 3 (Blueprint — SECURITY CRITICAL)**: Fixed 8 bugs — `commitRange` sanitization regex, rollback action whitelist (11 actions), real `executeStep` switch statement, real `waitForHealthCheck` with HTTP polling, dead `setTimeout` removed, `extractSemanticChange` accepts `commitRange`, `assessRisk` returns `"medium"` for agent paths, `approvePlan` validates `status === "pending"`, `"restore-params"` action added to type union
+- **Phase 4 (Eitri)**: Implemented 6-stage pipeline — `parseAgentSpecFromOutput()` parses JSON from LLM output via regex `/\{[\s\S]*"name"[\s\S]*"agentId"[\s\S]*\}/` with field-level validation, stage advances to `"complete"` on success, errors populated on failure
+- **Phase 5 (Phoenix)**: Fixed 6 bugs — fake test results replaced with `pattern.occurrences * pattern.successRate`, snapshot rollback via `JSON.parse(JSON.stringify())`, silent `catch {}` → `console.warn`, shallow spread → deep clone, `generateRollbackPlan` populates steps with snapshot
+- **Phase 6 (Agent Manager Tests)**: Fixed assertion (`every(a => a.status === "offline")` vacuous truth → `length === 0`), removed duplicate test file `src/agent-manager.test.ts`
+- **Core package builds clean**: `tsconfig.json` exclude updated to `"src/__tests"`, `tsconfig.base.json` excludes `"**/*.test.ts"`, tsc exits 0
+
+**Bug count:** 26 backend bugs fixed across 6 phases + 1 build config fix.
+
+**Test status:** 258 pass, 4 skipped (AI-dependent), 1 pre-existing failure (council.test.ts). All Phases 1-6 complete.
+
+**Decisions:**
+- **ADR-049:** Backend execution order follows dependency chain: Loom (foundation) → Blueprint (security) → Eitri (fabrication) → Phoenix (self-improvement) → Agent Manager tests → Frontend. Never skip order; Phases depend on prior phases.
+- **ADR-050:** JS regex literals (`/pattern/`) should NOT double-escape `\d`, `\w`, etc. The `\\d` matches literal backslash-d, not digits. Single `\d` is correct inside regex literals.
+- **ADR-051:** Duplicate test files resolved by removing the non-canonical copy (`src/agent-manager.test.ts`). The canonical version is always in `src/__tests__/`. CI should be checked for similar duplicates.
+
+**Next:**
+- Phase 7 (Frontend) — shared `api.ts`, wire AgentGrid/StatusBar, remove dead components, clean deps/CSS

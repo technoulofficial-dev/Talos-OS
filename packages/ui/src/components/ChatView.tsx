@@ -2,8 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Send, RefreshCw, AlertCircle, Sparkles, Brain, Eye, EyeOff } from "lucide-react";
-
-const API_BASE = "http://localhost:8642";
+import { fetchJson } from "@/lib/api";
 
 interface ChatMessage {
   id: string;
@@ -100,9 +99,8 @@ export function ChatView() {
         .filter((m) => m.role !== "system")
         .map((m) => ({ role: m.role, content: m.content }));
 
-      const res = await fetch(`${API_BASE}/v1/route`, {
+      const data = await fetchJson<ModelResponse>("/v1/route", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prompt: text,
           systemPrompt: ODIN_SYSTEM_PROMPT,
@@ -112,14 +110,6 @@ export function ChatView() {
           preferLocal,
         }),
       });
-
-      if (!res.ok) {
-        const body = await res.text();
-        throw new Error(`API ${res.status}: ${body.slice(0, 200)}`);
-      }
-
-      const json = (await res.json()) as { data: ModelResponse };
-      const data = json.data;
 
       setLastProvider(data.provider);
       setLastModel(data.model);

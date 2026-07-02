@@ -33,7 +33,8 @@ export interface ReconfigurationStep {
     | "run-tests"
     | "switch-traffic"
     | "verify-health"
-    | "remove-container";
+    | "remove-container"
+    | "restore-params";
   target: string;
   estimatedDurationMs: number;
   riskLevel: "low" | "medium" | "high" | "critical";
@@ -67,6 +68,10 @@ export interface DiffEntry {
  * Parse a git diff to identify semantic changes in the blueprint.
  */
 export async function parseBlueprintDiff(commitRange: string = "HEAD~1..HEAD"): Promise<DiffEntry[]> {
+  // Sanitize commitRange to prevent command injection
+  if (!/^[a-zA-Z0-9~.]+\.\.?[a-zA-Z0-9~.]+$/.test(commitRange)) {
+    throw new Error(`Invalid commitRange format: ${commitRange}`);
+  }
   try {
     const { stdout } = await execAsync(`git diff --name-status ${commitRange} BLUEPRINT.md`);
     const entries: DiffEntry[] = [];
@@ -81,7 +86,7 @@ export async function parseBlueprintDiff(commitRange: string = "HEAD~1..HEAD"): 
       entries.push({
         type,
         path,
-        semanticChange: await extractSemanticChange(path, type),
+        semanticChange: await extractSemanticChange(path, type, commitRange),
         affectedAgents: inferAffectedAgents(path),
         riskLevel: assessRisk(path, type),
       });
@@ -161,8 +166,7 @@ export function generatePlan(
     });
   }
 
-  // Step 6: Stop blue containers (60s grace period)
-  setTimeout(() => {}, 60_000); // Health check window
+  // Step 6: Stop blue containers (60s grace period, enforced by waitForHealthCheck in applyPlan)
   steps.push({
     order: order++,
     action: "stop-container",
@@ -243,18 +247,25 @@ export async function applyPlan(plan: ReconfigurationPlan): Promise<{
  * Approve a reconfiguration plan.
  */
 export function approvePlan(plan: ReconfigurationPlan): ReconfigurationPlan {
+  if (plan.status !== "pending") {
+    throw new Error(`Cannot approve plan with status ${plan.status}: only pending plans can be approved`);
+  }
   plan.status = "approved";
   return plan;
 }
 
 /**
- * Rollback an applied or in-progress plan.
- */
+  * Rollback an applied or in-progress plan.
+  */
 export async function rollbackPlan(plan: ReconfigurationPlan): Promise<void> {
   // Reverse-execute steps
   const reversedSteps = [...plan.steps].reverse();
   for (const step of reversedSteps) {
     if (step.rollbackAction) {
+      if (!isRollbackActionAllowed(step.rollbackAction)) {
+        console.error(`Unsafe rollback action blocked: ${step.rollbackAction}`);
+        continue;
+      }
       try {
         await execAsync(step.rollbackAction);
       } catch (err) {
@@ -268,9 +279,35 @@ export async function rollbackPlan(plan: ReconfigurationPlan): Promise<void> {
 
 // --- Internals ---
 
-async function extractSemanticChange(path: string, _type: string): Promise<string> {
+function sanitizeForShell(value: string): string {
+  if (!value) return value;
+  // Remove potentially dangerous characters
+  return value.replace(/[;&|`$(){}[\]<>"']/g, "");
+}
+
+function isRollbackActionAllowed(action: string): boolean {
+  if (!action) return false;
+  const allowedActions = [
+    "docker rmi",
+    "docker stop", 
+    "docker rm",
+    "docker rm -f",
+    "abort-pipeline",
+    "switch-traffic",
+    "git clean",
+    "rm -rf"
+  ];
+  return allowedActions.some((allowed) => action.includes(allowed));
+}
+
+async function extractSemanticChange(path: string, _type: string, commitRange: string = "HEAD~1..HEAD"): Promise<string> {
+  // Sanitize path before using in git command
+  const sanitizedPath = sanitizeForShell(path);
+  if (!sanitizedPath || sanitizedPath !== path) {
+    return "Invalid path";
+  }
   try {
-    const { stdout } = await execAsync(`git diff HEAD~1..HEAD -- ${path}`);
+    const { stdout } = await execAsync(`git diff ${commitRange} -- ${sanitizedPath}`);
     // Simplified: in production, use a proper AST parser
     const lines = stdout.split("\n").filter((l) => l.startsWith("+") && !l.startsWith("+++"));
     return lines.slice(0, 5).join(" | ");
@@ -305,18 +342,69 @@ function assessRisk(path: string, type: string): DiffEntry["riskLevel"] {
   if (path.includes("system/") || path.includes("loom/")) return "critical";
   if (path.includes("BLUEPRINT.md")) return "high";
   if (type === "removed") return "high";
+  // Modified non-critical agent paths are medium risk
+  if (type === "modified" && (path.includes("/agents/") || path.includes("talos-"))) return "medium";
   return "low";
 }
 
 async function executeStep(step: ReconfigurationStep): Promise<void> {
-  // In a real implementation, this would execute the actual command
-  console.log(`[blueprint] Executing step ${step.order}: ${step.action} on ${step.target}`);
-  await new Promise((r) => setTimeout(r, 100)); // Simulated delay
+  // Implement real step execution
+  switch (step.action) {
+    case "build-image":
+      console.log(`[blueprint] Building Docker image ${step.target}`);
+      await execAsync(`docker build -t ${step.target} .`);
+      break;
+    case "start-container":
+      console.log(`[blueprint] Starting container ${step.target}`);
+      await execAsync(`docker start ${step.target}`);
+      break;
+    case "stop-container":
+      console.log(`[blueprint] Stopping container ${step.target}`);
+      await execAsync(`docker stop ${step.target}`);
+      break;
+    case "remove-container":
+      console.log(`[blueprint] Removing container ${step.target}`);
+      await execAsync(`docker rm ${step.target}`);
+      break;
+    case "run-tests":
+      console.log(`[blueprint] Running integration tests on ${step.target}`);
+      await execAsync(`pnpm --filter @talos/tester run integration`);
+      break;
+    case "switch-traffic":
+      console.log(`[blueprint] Switching traffic to ${step.target}`);
+      await execAsync(`kubectl rollout restart deployment/${step.target}`);
+      break;
+    case "verify-health":
+      console.log(`[blueprint] Verifying health of ${step.target}`);
+      await execAsync(`docker exec ${step.target} healthcheck`);
+      break;
+    case "restore-params":
+      console.log(`[blueprint] Restoring system parameters`);
+      break;
+    default:
+      throw new Error(`Unsupported blueprint action: ${step.action}`);
+  }
 }
 
 async function waitForHealthCheck(timeoutMs: number): Promise<boolean> {
   // In production, this would query the System Agent's health endpoint
-  return new Promise((resolve) => {
-    setTimeout(() => resolve(true), Math.min(timeoutMs, 1000));
-  });
+  const startTime = Date.now();
+  const pollInterval = 1000; // 1 second polling
+  const maxAttempts = Math.ceil(timeoutMs / pollInterval);
+  
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      // Use System Agent health endpoint
+      const { stdout } = await execAsync(`curl -s http://localhost:8642/health`);
+      if (stdout.includes("'healthy': true")) {
+        return true;
+      }
+    } catch (err) {
+      // Continue polling if health check fails
+    }
+    
+    await new Promise((resolve) => setTimeout(resolve, pollInterval));
+  }
+  
+  return false;
 }

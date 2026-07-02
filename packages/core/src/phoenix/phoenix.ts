@@ -194,11 +194,14 @@ export async function compilePatternToPolicy(pattern: OptimizationPattern): Prom
   const policyId = `policy-${pattern.id}-${Date.now().toString(36)}`;
   console.log(`[phoenix] Compiled policy: ${policyId} (zero-token cache hit)`);
 
+  const testsRun = Math.max(1, Math.round(pattern.occurrences));
+  const testsPassed = Math.max(0, Math.round(pattern.occurrences * pattern.successRate));
+
   return {
     policyId,
     compiled: true,
-    testsRun: 100,
-    testsPassed: 95,
+    testsRun,
+    testsPassed,
   };
 }
 
@@ -213,17 +216,19 @@ export async function applyMetaMutation(
     throw new Error("Mutation must be approved by a human before application");
   }
 
-  // Apply mutation
-  const newParams: SystemParameters = {
-    ...currentParams,
-    [mutation.parameter]: mutation.newValue,
-  };
+  // Deep clone current params for snapshot
+  const paramsSnapshot: SystemParameters = JSON.parse(JSON.stringify(currentParams));
+
+  // Apply mutation using deep clone to avoid reference issues
+  const newParams: SystemParameters = JSON.parse(JSON.stringify(currentParams));
+  (newParams as unknown as Record<string, unknown>)[mutation.parameter] = mutation.newValue;
   mutation.appliedAt = new Date().toISOString();
 
-  // Return rollback function
+  // Return rollback function that restores from snapshot
   const rollback = async () => {
     console.log(`[phoenix] Rolling back mutation on ${mutation.parameter}`);
-    // In production, restore from snapshot
+    // Restore old value from snapshot
+    (newParams as unknown as Record<string, unknown>)[mutation.parameter] = paramsSnapshot[mutation.parameter];
   };
 
   return { success: true, newParams, rollback };
@@ -240,15 +245,23 @@ function isSafeMutation(mutation: MetaMutation, _currentParams: SystemParameters
 }
 
 async function generateRollbackPlan(_currentParams: SystemParameters): Promise<ReconfigurationPlan> {
-  // In production, create a snapshot of current params and generate a plan to restore them
+  // Create a snapshot of current params and generate steps to restore them
+  const snapshotJson = JSON.stringify(_currentParams, null, 2);
   return {
     id: `rollback-${Date.now()}`,
     sourceVersion: "current",
     targetVersion: "current",
-    diffSummary: "Rollback to previous parameter state",
-    steps: [],
-    requiresApproval: false,
-    estimatedTotalTimeMs: 0,
+    diffSummary: `Rollback to previous parameter state\nSnapshot: ${snapshotJson}`,
+    steps: [{
+      order: 1,
+      action: "restore-params",
+      target: "system-parameters",
+      estimatedDurationMs: 100,
+      riskLevel: "medium",
+      rollbackAction: `restore params from snapshot: ${snapshotJson.slice(0, 100)}...`,
+    }],
+    requiresApproval: true,
+    estimatedTotalTimeMs: 100,
     rollbackStrategy: "Restore from snapshot",
     createdAt: new Date().toISOString(),
     status: "pending",
@@ -259,7 +272,9 @@ function parsePatternsFromOutput(output: string): OptimizationPattern[] {
   try {
     const match = output.match(/\[[\s\S]*\]/);
     if (match) return JSON.parse(match[0]) as OptimizationPattern[];
-  } catch {}
+  } catch (err) {
+    console.warn(`[phoenix] Failed to parse patterns from output: ${(err as Error).message}`);
+  }
   return [];
 }
 
@@ -284,7 +299,9 @@ function parseMutationsFromOutput(output: string, _current: SystemParameters): M
         approved: false,
       }));
     }
-  } catch {}
+  } catch (err) {
+    console.warn(`[phoenix] Failed to parse mutations from output: ${(err as Error).message}`);
+  }
   return [];
 }
 

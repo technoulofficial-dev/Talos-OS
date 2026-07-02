@@ -2,8 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { RefreshCw, Search, Plus, Trash2, Network, BarChart3 } from "lucide-react";
-
-const API_BASE = "http://localhost:8642";
+import { fetchJson } from "@/lib/api";
 
 interface Triple {
   id: string;
@@ -73,16 +72,12 @@ export function MemoryView() {
     setLoading(true);
     setError(null);
     try {
-      const [triplesRes, statsRes] = await Promise.all([
-        fetch(`${API_BASE}/v1/graphify/triples?limit=500`),
-        fetch(`${API_BASE}/v1/graphify/stats`),
+      const [triples, stats] = await Promise.all([
+        fetchJson<Triple[]>("/v1/graphify/triples?limit=500"),
+        fetchJson<GraphStats>("/v1/graphify/stats"),
       ]);
-      if (!triplesRes.ok) throw new Error(`triples: ${triplesRes.status}`);
-      if (!statsRes.ok) throw new Error(`stats: ${statsRes.status}`);
-      const triplesJson = (await triplesRes.json()) as { data: Triple[] };
-      const statsJson = (await statsRes.json()) as { data: GraphStats };
-      setTriples(triplesJson.data ?? []);
-      setStats(statsJson.data ?? null);
+      setTriples(triples ?? []);
+      setStats(stats ?? null);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -116,8 +111,7 @@ export function MemoryView() {
 
   const handleDelete = useCallback(async (id: string) => {
     try {
-      const res = await fetch(`${API_BASE}/v1/graphify/triple/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error(`delete failed: ${res.status}`);
+      await fetchJson(`/v1/graphify/triple/${id}`, { method: "DELETE" });
       setTriples((prev) => prev.filter((t) => t.id !== id));
       if (stats) {
         setStats({ ...stats, totalTriples: stats.totalTriples - 1 });
@@ -132,9 +126,8 @@ export function MemoryView() {
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/v1/graphify/triple`, {
+      const triple = await fetchJson<Triple>("/v1/graphify/triple", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           subject: newSubject.trim(),
           predicate: newPredicate.trim(),
@@ -142,18 +135,12 @@ export function MemoryView() {
           context: newContext.trim() || undefined,
         }),
       });
-      if (!res.ok) throw new Error(`add failed: ${res.status}`);
-      const json = (await res.json()) as { data: Triple };
-      setTriples((prev) => [json.data, ...prev]);
+      setTriples((prev) => [triple, ...prev]);
       setNewSubject("");
       setNewObject("");
       setNewContext("");
       setShowAdd(false);
-      const statsRes = await fetch(`${API_BASE}/v1/graphify/stats`);
-      if (statsRes.ok) {
-        const sjson = (await statsRes.json()) as { data: GraphStats };
-        setStats(sjson.data);
-      }
+      fetchJson<GraphStats>("/v1/graphify/stats").then(setStats).catch(() => {});
     } catch (err) {
       setError((err as Error).message);
     } finally {

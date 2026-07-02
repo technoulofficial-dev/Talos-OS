@@ -104,23 +104,6 @@
     @apply bg-linear-bg-overlay text-linear-text border-linear-accent;
   }
 
-  /* Legacy Bronze-Punk button (kept for backward compat) */
-  .btn-cyan {
-    @apply px-4 py-2 bg-cyan-500/10 border border-cyan-500 text-cyan-500 font-mono uppercase tracking-wider text-sm transition-all;
-  }
-  .btn-cyan:hover {
-    @apply bg-cyan-500/20;
-    box-shadow: 0 0 10px rgba(0, 229, 255, 0.5);
-  }
-
-  .btn-bronze {
-    @apply px-4 py-2 bg-bronze-400/10 border border-bronze-400 text-bronze-300 font-mono uppercase tracking-wider text-sm transition-all;
-  }
-  .btn-bronze:hover {
-    @apply bg-bronze-400/20;
-    box-shadow: 0 0 10px rgba(184, 115, 51, 0.5);
-  }
-
   /* Status indicators (Linear palette) */
   .status-healthy {
     @apply text-linear-status-success;
@@ -154,9 +137,4 @@
     z-index: 10;
   }
 
-  /* Rune text */
-  .rune {
-    @apply font-display text-cyan-500;
-    text-shadow: 0 0 4px #00e5ff, 0 0 8px #00e5ff;
-  }
 }

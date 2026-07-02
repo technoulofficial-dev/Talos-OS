@@ -91,7 +91,7 @@ describe("Agent Manager", () => {
     it("returns empty array for non-matching status", async () => {
       await createAgent(makeConfig({ agentId: "list-empty" }));
       const offline = listAgents("offline");
-      expect(offline.every((a) => a.status === "offline")).toBe(true);
+      expect(offline.length).toBe(0);
     });
   });
 

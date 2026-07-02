@@ -10,6 +10,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { MemoryView } from "@/components/MemoryView";
 import { BlueprintView } from "@/components/BlueprintView";
 import { ChatView } from "@/components/ChatView";
+import { SystemMetrics } from "@/components/SystemMetrics";
 import { fetchJson } from "@/lib/api";
 import type { Node, Edge } from "reactflow";
 
@@ -79,6 +80,8 @@ export default function Dashboard() {
               <p className="text-linear-text-secondary font-mono text-sm">
                 Orchestrating the Bronze Automaton
               </p>
+
+              <SystemMetrics />
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="panel p-4">

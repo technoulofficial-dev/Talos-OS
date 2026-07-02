@@ -3,3 +3,4 @@ export { StatusBadge, type StatusLevel } from "./StatusBadge";
 export { MetricCard } from "./MetricCard";
 export { SearchBar } from "./SearchBar";
 export { DataTable, type Column } from "./DataTable";
+export { SystemMetrics } from "./SystemMetrics";

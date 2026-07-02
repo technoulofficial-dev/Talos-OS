@@ -9,7 +9,7 @@
  */
 
 import { routeUnlimited } from "../ai-engine/router.js";
-import { registerSkill, type RegisterSkillInput, type Skill } from "@talos/db";
+import { registerSkill, getSkill, updateSuccessRate, type RegisterSkillInput, type Skill } from "@talos/db";
 
 export interface SkillSource {
   type: "github" | "local" | "url" | "npm" | "pypi";
@@ -203,14 +203,29 @@ export async function harvestSkill(
     };
   }
 
-  // Step 4: Register in DB (unless skipped)
+  // Step 4: Sandbox test (optional, gated by env flag)
+  let testPassed = true;
+  let testOutput = "Sandbox test disabled (set TALOS_HARVESTER_SANDBOX_ENABLED=true to enable)";
+  if (process.env["TALOS_HARVESTER_SANDBOX_ENABLED"] === "true") {
+    try {
+      const testFn = new Function("params", extraction.skill.logic);
+      const testResult = await testFn({ test: true, input: "sandbox-verify" });
+      testPassed = true;
+      testOutput = `Sandbox test passed: ${JSON.stringify(testResult)}`;
+    } catch (err) {
+      testPassed = false;
+      testOutput = `Sandbox test failed: ${(err as Error).message}`;
+    }
+  }
+
+  // Step 5: Register in DB (unless skipped)
   if (options?.skipDb) {
     return {
       success: true,
       skill: null,
       extracted: extraction.skill,
-      testPassed: true,
-      testOutput: "Skipped DB registration",
+      testPassed,
+      testOutput,
       licenseCompliant: true,
       output: extraction.output,
       model: extraction.model,
@@ -219,6 +234,25 @@ export async function harvestSkill(
   }
 
   try {
+    const client = options?.client as Parameters<typeof registerSkill>[1];
+
+    // Step 5a: Deduplication — check if skill already exists
+    const existing = await getSkill(extraction.skill.name, client).catch(() => null);
+    if (existing) {
+      await updateSuccessRate(extraction.skill.name, 0.5, client).catch(() => {});
+      return {
+        success: true,
+        skill: existing,
+        extracted: extraction.skill,
+        testPassed,
+        testOutput: `Skill "${extraction.skill.name}" already exists — updated success rate`,
+        licenseCompliant: true,
+        output: extraction.output,
+        model: extraction.model,
+        latencyMs: Date.now() - start,
+      };
+    }
+
     const input: RegisterSkillInput = {
       name: extraction.skill.name,
       description: extraction.skill.description,
@@ -228,13 +262,13 @@ export async function harvestSkill(
       promptTemplate: extraction.skill.logic,
       triggerPhrases: extraction.skill.tags,
     };
-    const registered = await registerSkill(input, options?.client as Parameters<typeof registerSkill>[1]);
+    const registered = await registerSkill(input, client);
     return {
       success: true,
       skill: registered,
       extracted: extraction.skill,
-      testPassed: true,
-      testOutput: "Registered successfully",
+      testPassed,
+      testOutput,
       licenseCompliant: true,
       output: extraction.output,
       model: extraction.model,
@@ -245,7 +279,7 @@ export async function harvestSkill(
       success: false,
       skill: null,
       extracted: extraction.skill,
-      testPassed: false,
+      testPassed,
       testOutput: `DB registration failed: ${(err as Error).message}`,
       licenseCompliant: true,
       output: extraction.output,

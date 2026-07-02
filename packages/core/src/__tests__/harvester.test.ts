@@ -7,8 +7,14 @@ vi.mock("../ai-engine/router.js", () => ({
 }));
 
 // Mock @talos/db (external package)
+const { mockGetSkill, mockUpdateRate } = vi.hoisted(() => ({
+  mockGetSkill: vi.fn(),
+  mockUpdateRate: vi.fn(),
+}));
 vi.mock("@talos/db", () => ({
   registerSkill: vi.fn(),
+  getSkill: mockGetSkill,
+  updateSuccessRate: mockUpdateRate,
 }));
 
 import { routeUnlimited } from "../ai-engine/router.js";
@@ -197,6 +203,101 @@ describe("Harvester — Skip DB Mode", () => {
     expect(result.success).toBe(true);
     expect(result.skill).toBeNull();
     expect(mockRegister).not.toHaveBeenCalled();
+  });
+});
+
+describe("Harvester — Deduplication", () => {
+  beforeEach(() => {
+    mockGetSkill.mockReset();
+    mockUpdateRate.mockReset();
+  });
+
+  it("skips registration if skill already exists", async () => {
+    const skillJson = JSON.stringify({
+      name: "already-exists",
+      description: "Existing skill",
+      logic: "function run(p) { return p.x; }",
+      dependencies: [],
+      tags: [],
+    });
+    mockRoute.mockResolvedValue({ output: skillJson, model: "mock", provider: "mock" } as never);
+    mockGetSkill.mockResolvedValue({
+      id: "existing-uuid", name: "already-exists", description: "Existing skill",
+      source: "prev", sourceTool: "harvester", category: "uncategorized",
+      promptTemplate: "", triggerPhrases: [], successRate: 0.3, isCached: false,
+    });
+
+    const result = await harvestSkill(makeSource());
+    expect(result.success).toBe(true);
+    expect(result.skill?.name).toBe("already-exists");
+    expect(mockRegister).not.toHaveBeenCalled();
+    expect(mockUpdateRate).toHaveBeenCalledWith("already-exists", 0.5, undefined);
+  });
+
+  it("registers normally when skill does not exist", async () => {
+    const skillJson = JSON.stringify({
+      name: "fresh-skill",
+      description: "New skill",
+      logic: "function run(p) { return p.x; }",
+      dependencies: [],
+      tags: [],
+    });
+    mockRoute.mockResolvedValue({ output: skillJson, model: "mock", provider: "mock" } as never);
+    mockGetSkill.mockResolvedValue(null);
+    mockRegister.mockResolvedValue({
+      id: "fresh-uuid", name: "fresh-skill", description: "New skill",
+      source: "https://github.com/example/skill", sourceTool: "harvester", category: "uncategorized",
+      promptTemplate: "", triggerPhrases: [], successRate: 0, isCached: false,
+    });
+
+    const result = await harvestSkill(makeSource());
+    expect(result.success).toBe(true);
+    expect(result.skill?.name).toBe("fresh-skill");
+    expect(mockRegister).toHaveBeenCalled();
+    expect(mockUpdateRate).not.toHaveBeenCalled();
+  });
+});
+
+describe("Harvester — Sandbox Test", () => {
+  const origEnv = process.env["TALOS_HARVESTER_SANDBOX_ENABLED"];
+
+  afterEach(() => {
+    if (origEnv === undefined) {
+      delete process.env["TALOS_HARVESTER_SANDBOX_ENABLED"];
+    } else {
+      process.env["TALOS_HARVESTER_SANDBOX_ENABLED"] = origEnv;
+    }
+  });
+
+  it("skips sandbox test by default", async () => {
+    const skillJson = JSON.stringify({
+      name: "no-sandbox",
+      description: "d",
+      logic: "function run(p) { return p.x; }",
+      dependencies: [],
+      tags: [],
+    });
+    mockRoute.mockResolvedValue({ output: skillJson, model: "mock", provider: "mock" } as never);
+
+    const result = await harvestSkill(makeSource(), { skipDb: true });
+    expect(result.testOutput).toContain("Sandbox test disabled");
+    expect(result.testPassed).toBe(true);
+  });
+
+  it("runs sandbox test when enabled", async () => {
+    process.env["TALOS_HARVESTER_SANDBOX_ENABLED"] = "true";
+    const skillJson = JSON.stringify({
+      name: "sandbox-me",
+      description: "d",
+      logic: "function run(p) { return 'ok-' + p.input; }",
+      dependencies: [],
+      tags: [],
+    });
+    mockRoute.mockResolvedValue({ output: skillJson, model: "mock", provider: "mock" } as never);
+
+    const result = await harvestSkill(makeSource(), { skipDb: true });
+    expect(result.testPassed).toBe(true);
+    expect(result.testOutput).toContain("sandbox-verify");
   });
 });
 

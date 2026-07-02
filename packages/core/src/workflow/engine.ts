@@ -70,9 +70,29 @@ export function resolveVariables(value: string, variables: Record<string, unknow
   });
 }
 
+function deepResolveStrings(
+  value: unknown,
+  variables: Record<string, unknown>,
+): unknown {
+  if (typeof value === "string" && value.includes("{{")) {
+    return resolveVariables(value, variables);
+  }
+  if (Array.isArray(value)) {
+    return value.map((v) => deepResolveStrings(v, variables));
+  }
+  if (value && typeof value === "object") {
+    const result: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      result[k] = deepResolveStrings(v, variables);
+    }
+    return result;
+  }
+  return value;
+}
+
 /**
  * Resolve {{...}} placeholders in all string config fields for a node.
- * Non-string fields (headers, args, body-as-object) are left untouched.
+ * Deep-resolves nested objects (args, passThrough, proposal, body-as-object).
  */
 function resolveConfig(
   config: Record<string, unknown>,
@@ -96,6 +116,13 @@ function resolveConfig(
       if (typeof v === "string" && v.includes("{{")) {
         (headers as Record<string, unknown>)[k] = resolveVariables(v, variables);
       }
+    }
+  }
+  // Deep-resolve nested objects: args, passThrough, proposal, body (as object)
+  for (const field of ["args", "passThrough", "proposal", "body"]) {
+    const val = config[field];
+    if (val && typeof val === "object") {
+      config[field] = deepResolveStrings(val, variables);
     }
   }
 }
